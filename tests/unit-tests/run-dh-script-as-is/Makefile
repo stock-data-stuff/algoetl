@@ -1,9 +1,5 @@
 .PHONY=all clean clean-all venv python3 deps test run
 
-# USAGE:
-#   'make': runs idempotently. Cleans everything before runnung.
-#   'make run': quickly runs the script. Removes the csv files before runnung.
-
 # Force make to run targets sequentially
 .NOTPARALLEL:
 
