@@ -22,7 +22,7 @@ INSTALL_VENV=$(shell test -d $(VENV_DIR) || $(VENV_PYTHON) -m venv $(VENV_DIR))
 UPDATE_PIPS=$(shell source $(VENV_DIR)/bin/activate && pip3 -q install -r $(MAKEFILE_PATH)requirements.txt)
 RUN_IMPORT=$(shell source $(VENV_DIR)/bin/activate && python3 import_data_full.py)
 
-all: clean-all test
+all: clean test
 
 clean:
 	$(info Removing any fetched files)
