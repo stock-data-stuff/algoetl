@@ -3,16 +3,23 @@
 # List the feeds in this section
 # Do not use the feed name "ALL" since it is reserved to mean "load all feeds here"
 feeds:
+  #docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
+  FED_Soma: # Seems to hang when queried for "too many" days at a time
+    type: markets_new_york_fed_org
+    args:
+      symbol: "FED_Soma"
+      productCode: "30"
+      query: "details"
+      holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
+      format: "csv"
   #docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
     type: pandas_datareader
     args:
-      source: "yahoo"
       symbol: "VIX"
+      source: "yahoo"
   SPY:
     type: pandas_datareader
     args:
-      source: "yahoo"
       symbol: "SPY"
-
-
+      source: "yahoo"

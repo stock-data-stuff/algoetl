@@ -7,7 +7,9 @@ import logging
 import yaml
 import datetime
 import pandas_datareader as web
-
+import csv
+import requests
+import pandas as pd
 
 class Pyalgofetcher:
     def __init__(self, cfg):
@@ -33,37 +35,13 @@ class Pyalgofetcher:
         self.start_date = cfg.start_date
         self.end_date = cfg.end_date
 
-
-    def process_pandas_datareader_feed(self, feed):
-        # Ensure the directory to hold the data for this feed exists
-        type_dir = os.path.normpath(os.path.join(self.history_dir, "pandas_datareader"))
-        if os.path.isdir(type_dir):
-            logging.debug("History Type directory for feed:" + feed + " exists at:" + type_dir)
-        else:
-            logging.debug("Creating history type directory for feed:" + feed + " at:" + type_dir)
-            os.mkdir(type_dir)
-        #
-        hist_dir = os.path.normpath(os.path.join(type_dir, feed))
-        if os.path.isdir(hist_dir):
-            logging.debug("History directory for feed:" + feed + " exists at:" + hist_dir)
-        else:
-            logging.debug("Creating history directory for feed:" + feed + " at:" + hist_dir)
-            os.mkdir(hist_dir)
-
-        logging.info("Loading pandas_datareader type feed:" + feed)
+    def process_pandas_datareader_feed(self, feed, hist_dir, feed_type):
+        """ Process data that is read via the pandas_datareader API """
+        logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
         args = self.cfg_data['feeds'][feed]['args']
         logging.debug("Args:" + str(args))
-        source = args['source']
         symbol = args['symbol']
-
-        # datetime.datetime is a data type within the datetime module
-        #start = datetime.datetime(1990, 1, 1)
-        #start = datetime.datetime(2020, 12, 1) # fails since no data
-        #end = datetime.datetime(2021, 12, 18)
-        #
-        # https://docs.python.org/3/library/datetime.html#datetime.datetime.fromisoformat
-        #start = datetime.datetime.fromisoformat('1990-01-01')
-        #end = datetime.datetime.fromisoformat('2021-12-18')
+        source = args['source']
         start = datetime.datetime.fromisoformat(self.start_date)
         end = datetime.datetime.fromisoformat(self.end_date)
 
@@ -72,13 +50,53 @@ class Pyalgofetcher:
             df = web.DataReader(symbol, source, start, end)
         except KeyError as e:
             logging.error("No data found. Got KeyError:" + str(e))
-            logging.critical("No data found for feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
+            logging.critical(
+                "No data found for feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
             sys.exit(1)
-
-        rel_filename = "pandas_datareader_" + source + "_" + symbol + "_" + self.start_date + "_" + self.end_date + ".csv"
+        # Name the file such that we can put all files in one dir and later be able to identify the format, details etc.
+        rel_filename = feed_type + "_" + source + "_" + symbol + "_" + self.start_date + "_" + self.end_date + ".csv"
         abs_filename = os.path.normpath(os.path.join(hist_dir, rel_filename))
         logging.info("Writing data to:" + abs_filename)
         df.to_csv(abs_filename)
+
+    def process_markets_new_york_fed_org(self, feed, hist_dir, feed_type):
+        """ Process data that is read from the New York Fed website (rest) API """
+        logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
+        args = self.cfg_data['feeds'][feed]['args']
+        logging.debug("Args:" + str(args))
+        symbol = args['symbol']
+        product_code = args['productCode']
+        query = args['query']
+        holding_types = args['holdingTypes']
+        # Construct the query URL
+        url = 'https://markets.newyorkfed.org/read?productCode=' + product_code + '&startDt=' + self.start_date + '&endDt=' + self.end_date
+        url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
+        # Fetch the data
+        response = requests.get(url)
+        # Name the file such that we can put all files in one dir and later be able to identify the format, details etc.
+        rel_filename = feed_type + "_" + symbol + "_" + self.start_date + "_" + self.end_date + ".csv"
+        abs_filename = os.path.normpath(os.path.join(hist_dir, rel_filename))
+        logging.info("Writing data to:" + abs_filename)
+        df = pd.read_csv(url)
+        df.head()
+        df.to_csv(abs_filename)
+
+
+    def create_hist_dir(self, feed, feed_type):
+        """ Ensure the directory to hold the data for this feed exists. Return its path """
+        type_dir = os.path.normpath(os.path.join(self.history_dir, feed_type))
+        if os.path.isdir(type_dir):
+            logging.debug("History Type directory for feed:" + feed + " exists at:" + type_dir)
+        else:
+            logging.debug("Creating history type directory for feed:" + feed + " at:" + type_dir)
+            os.mkdir(type_dir)
+        hist_dir = os.path.normpath(os.path.join(type_dir, feed))
+        if os.path.isdir(hist_dir):
+            logging.debug("History directory for feed:" + feed + " exists at:" + hist_dir)
+        else:
+            logging.debug("Creating history directory for feed:" + feed + " at:" + hist_dir)
+            os.mkdir(hist_dir)
+        return hist_dir
 
     def process_feed(self, feed):
         """ Process the given feed
@@ -87,9 +105,14 @@ class Pyalgofetcher:
         logging.debug("Feed cfg: " + str(feed_cfg))
         feed_type = feed_cfg['type']
         if feed_type == 'pandas_datareader':
-            self.process_pandas_datareader_feed(feed)
+            hist_dir = self.create_hist_dir(feed, feed_type)
+            self.process_pandas_datareader_feed(feed, hist_dir, feed_type)
+        elif feed_type == 'markets_new_york_fed_org':
+            hist_dir = self.create_hist_dir(feed, feed_type)
+            self.process_markets_new_york_fed_org(feed, hist_dir, feed_type)
         else:
-            logging.info("Feed:" + feed + " has an invalid type:" + feed_type)
+            logging.critical("Feed:" + feed + " has an invalid type:" + feed_type)
+            sys.exit(1)
 
     def run(self):
         """ Run the feed loaders. If the given feed is "ALL" then load all of them.
@@ -118,8 +141,8 @@ def read_cli_args(argv):
     config_file = os.path.normpath(os.path.join(cur_dir, "config.yaml"))
     history_dir = os.path.normpath(os.path.join(cur_dir, "feed-history"))
     feed = 'ALL'
-    start_date='1990-01-01'
-    end_date='2030-01-01'
+    start_date = '2017-01-31'
+    end_date = '2018-01-31'
 
     # Parse the args
     parser = argparse.ArgumentParser()
