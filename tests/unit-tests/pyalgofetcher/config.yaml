@@ -1,7 +1,30 @@
 # This config file controls the pyalgofetcher program
 
+output:
+  # Support some formats, via https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html
+  # AVOID CSV!
+  # We get headers that have a NULL/missing first column, like this in the Fed data: ",As Of Date,CUSIP,".
+  # JSON takes up more space, but we can compress it if necessary.
+  #format: "csv"
+  format: json
+  format_args:
+    # CSV
+    header: true # header line
+    # JSON
+    orient: "records" # one per line for human readability
+    # CSV and JSON
+    compression: None # or "gz". Other compression types probably result in "unsupported compression" errors
+
 # List the feeds in this section
-# Do not use the feed name "ALL" since it is reserved to mean "load all feeds here"
+#
+# Every feed is identified by a key (e.g. FED_Soma)
+# Do not use a key (under "feeds:") of "ALL" since it is reserved to mean "load all feeds here"
+#
+# Each feed must have a type
+# It's helpful to group feeds here by type (for human readability)
+#
+# Each feed must have an "args" key containing a "symbol" key.
+# The symbol is used to identify the feed (e.g. name the directory that holds the feed)
 feeds:
   #docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
   FED_Soma: # Seems to hang when queried for "too many" days at a time

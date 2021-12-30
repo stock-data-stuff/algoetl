@@ -4,26 +4,25 @@ import os
 import sys
 import argparse
 import logging
-import yaml
 import datetime
+import yaml
 import pandas_datareader as web
-import csv
-import requests
 import pandas as pd
+
 
 class Pyalgofetcher:
     def __init__(self, cfg):
-        # Arguments
+        """ Construct the fetcher object """
         self.config_file = cfg.config_file  # Config file
         self.history_dir = cfg.history_dir  # Output of this project
         self.feed_name = cfg.feed  # Feed(s) to run
         logging.debug("config_file = " + self.config_file)
         logging.debug("history_dir = " + self.history_dir)
         logging.debug("feed_name = " + self.feed_name)
-        # Create the history_dir (if it doesn't exist)
-        if not os.path.isdir(self.history_dir):
+        # Create the history_dir (if it doesn't exist). Allow it to be a symlink
+        if not os.path.isdir(self.history_dir) and not os.path.islink(self.history_dir):
             os.mkdir(self.history_dir)
-        # Read the config file. It should be in the dir as this script
+        # Read the config file.
         if not os.path.isfile(self.config_file):
             logging.error("Config file is missing: " + self.config_file)
             sys.exit(1)
@@ -32,10 +31,57 @@ class Pyalgofetcher:
             logging.info("Read successful")
         logging.info(self.cfg_data)
         # start and end of processing
+        # TODO: assert that the start/end date formats are 'yyyy-mm-dd'
         self.start_date = cfg.start_date
         self.end_date = cfg.end_date
+        # Allow overriding the output format
+        if cfg.output_format is not None:
+            if cfg.output_format.lower() == 'json':
+                self.output_format = 'json'
+            elif cfg.output_format.lower() == 'csv':
+                self.output_format = 'csv'
+            else:
+                logging.critical("init(): Unsupported output format parameter: " + cfg.output_format)
+                sys.exit(1)
+        else:
+            self.output_format = self.cfg_data['output']['format']
+        logging.info("Output format is:" + self.output_format)
+        # Allow overriding the compression
+        if cfg.compression is not None:
+            if cfg.compression.lower() == 'gz':
+                self.compression = 'gz'
+            elif cfg.compression.lower() == 'gzip':
+                self.compression = 'gzip'
+            else:
+                logging.critical("init(): Unsupported compression: " + cfg.compression)
+                sys.exit(1)
+        else:
+            self.compression = self.cfg_data['output']['format_args']['compression']
+        logging.info("Compression is:" + self.compression)
 
-    def process_pandas_datareader_feed(self, feed, hist_dir, feed_type):
+    def write_df(self, abs_filename, df):
+        """ Write the dataframe to a file. Format details are in the config data"""
+        # If compression is enabled, append the extension to the filename
+        if self.compression is not None and self.compression.lower() != "none":
+            abs_filename += "." + self.compression.replace(".", "")
+        logging.info("Writing dataframe to:" + abs_filename)
+        if self.output_format == "csv":
+            csv_header = self.cfg_data['output']['format_args']['header']
+            if str(csv_header).lower() == 'false':
+                df.to_csv(abs_filename, header=None)
+            else:
+                df.to_csv(abs_filename)
+        elif self.output_format == "json":
+            orient = self.cfg_data['output']['format_args']['orient']
+            if str(orient).lower() == 'records':
+                df.to_json(abs_filename, orient="records", lines=True)
+            else:
+                df.to_json(abs_filename)
+        else:
+            logging.critical("write_df(): Unsupported output format parameter: " + self.output_format)
+            sys.exit(1)
+
+    def process_pandas_datareader_feed(self, feed, feed_dir, feed_type):
         """ Process data that is read via the pandas_datareader API """
         logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
         args = self.cfg_data['feeds'][feed]['args']
@@ -44,7 +90,7 @@ class Pyalgofetcher:
         source = args['source']
         start = datetime.datetime.fromisoformat(self.start_date)
         end = datetime.datetime.fromisoformat(self.end_date)
-
+        # Fetch the data into a dataframe
         # If there is no data for the date range given, this throws a "KeyError" on 'Date'
         try:
             df = web.DataReader(symbol, source, start, end)
@@ -53,13 +99,14 @@ class Pyalgofetcher:
             logging.critical(
                 "No data found for feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
             sys.exit(1)
-        # Name the file such that we can put all files in one dir and later be able to identify the format, details etc.
-        rel_filename = feed_type + "_" + source + "_" + symbol + "_" + self.start_date + "_" + self.end_date + ".csv"
-        abs_filename = os.path.normpath(os.path.join(hist_dir, rel_filename))
-        logging.info("Writing data to:" + abs_filename)
-        df.to_csv(abs_filename)
+        # Name the file such that we can put all files in one dir and later be able to identify its details
+        output_format = self.output_format
+        rel_filename = feed_type + "_" + source + "_" + symbol + "_"
+        rel_filename += self.start_date + "_" + self.end_date + "." + output_format
+        abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
+        self.write_df(abs_filename, df)
 
-    def process_markets_new_york_fed_org(self, feed, hist_dir, feed_type):
+    def process_markets_new_york_fed_org(self, feed, feed_dir, feed_type):
         """ Process data that is read from the New York Fed website (rest) API """
         logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
         args = self.cfg_data['feeds'][feed]['args']
@@ -69,20 +116,24 @@ class Pyalgofetcher:
         query = args['query']
         holding_types = args['holdingTypes']
         # Construct the query URL
-        url = 'https://markets.newyorkfed.org/read?productCode=' + product_code + '&startDt=' + self.start_date + '&endDt=' + self.end_date
+        url = 'https://markets.newyorkfed.org/read?productCode=' + product_code
+        url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
         url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
-        # Fetch the data
-        response = requests.get(url)
-        # Name the file such that we can put all files in one dir and later be able to identify the format, details etc.
-        rel_filename = feed_type + "_" + symbol + "_" + self.start_date + "_" + self.end_date + ".csv"
-        abs_filename = os.path.normpath(os.path.join(hist_dir, rel_filename))
-        logging.info("Writing data to:" + abs_filename)
-        df = pd.read_csv(url)
-        df.head()
-        df.to_csv(abs_filename)
+        # Fetch the data into a dataframe
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            logging.error("Failed to get data. Error:" + str(e))
+            logging.critical(
+                "Error while fetching data. feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
+            sys.exit(1)
+        # Name the file such that we can put all files in one dir and later be able to identify its details
+        output_format = self.output_format
+        rel_filename = feed_type + "_" + symbol + "_" + self.start_date + "_" + self.end_date + "." + output_format
+        abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
+        self.write_df(abs_filename, df)
 
-
-    def create_hist_dir(self, feed, feed_type):
+    def create_feed_dir(self, feed, feed_type):
         """ Ensure the directory to hold the data for this feed exists. Return its path """
         type_dir = os.path.normpath(os.path.join(self.history_dir, feed_type))
         if os.path.isdir(type_dir):
@@ -105,11 +156,11 @@ class Pyalgofetcher:
         logging.debug("Feed cfg: " + str(feed_cfg))
         feed_type = feed_cfg['type']
         if feed_type == 'pandas_datareader':
-            hist_dir = self.create_hist_dir(feed, feed_type)
-            self.process_pandas_datareader_feed(feed, hist_dir, feed_type)
+            feed_dir = self.create_feed_dir(feed, feed_type)
+            self.process_pandas_datareader_feed(feed, feed_dir, feed_type)
         elif feed_type == 'markets_new_york_fed_org':
-            hist_dir = self.create_hist_dir(feed, feed_type)
-            self.process_markets_new_york_fed_org(feed, hist_dir, feed_type)
+            feed_dir = self.create_feed_dir(feed, feed_type)
+            self.process_markets_new_york_fed_org(feed, feed_dir, feed_type)
         else:
             logging.critical("Feed:" + feed + " has an invalid type:" + feed_type)
             sys.exit(1)
@@ -121,7 +172,7 @@ class Pyalgofetcher:
             logging.info("Process all feeds")
         else:
             logging.info("Processing just feed: " + self.feed_name)
-
+        # Process the given feed, or ALL feeds.
         feeds = self.cfg_data['feeds']
         logging.debug("Feeds: " + str(feeds))
         for feed in feeds:
@@ -134,7 +185,6 @@ class Pyalgofetcher:
 def read_cli_args(argv):
     """ Read the CLI args and return sane settings
     """
-
     # Hard-coded Defaults
     cur_dir = os.getcwd()
     log_level = "DEBUG"
@@ -143,7 +193,8 @@ def read_cli_args(argv):
     feed = 'ALL'
     start_date = '2017-01-31'
     end_date = '2018-01-31'
-
+    output_format = None
+    compression = None
     # Parse the args
     parser = argparse.ArgumentParser()
     parser.add_argument('-l', '--log-level',
@@ -175,7 +226,14 @@ def read_cli_args(argv):
                         help='End date to fetch data. Default:'
                              + end_date,
                         default=end_date)
-
+    parser.add_argument('-o', '--output-format',
+                        action='store', type=str, dest="output_format",
+                        help='Output format. csv and json are supported. Default: from config file',
+                        default=output_format)
+    parser.add_argument('-C', '--compression',
+                        action='store', type=str, dest="compression",
+                        help='Compression. Default: from config file',
+                        default=compression)
     args = parser.parse_args()
     return args
 
