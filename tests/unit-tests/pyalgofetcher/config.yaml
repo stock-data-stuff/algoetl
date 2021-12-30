@@ -1,11 +1,18 @@
 # This config file controls the pyalgofetcher program
 
 # List the feeds in this section
+# Do not use the feed name "ALL" since it is reserved to mean "load all feeds here"
 feeds:
-  - name: VIX
-    type: pandas-datareader
-    # https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
-    pandas-datareader-args:
+  #docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
+  VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
+    type: pandas_datareader
+    args:
+      source: "yahoo"
       symbol: "VIX"
-      sourc: "yahoo"
+  SPY:
+    type: pandas_datareader
+    args:
+      source: "yahoo"
+      symbol: "SPY"
+
 
