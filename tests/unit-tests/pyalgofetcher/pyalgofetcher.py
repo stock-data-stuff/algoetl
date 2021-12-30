@@ -50,8 +50,12 @@ class Pyalgofetcher:
         if cfg.compression is not None:
             if cfg.compression.lower() == 'gz':
                 self.compression = 'gz'
-            elif cfg.compression.lower() == 'gzip':
-                self.compression = 'gzip'
+            elif cfg.compression.lower() == 'bz2':
+                self.compression = 'bz2'
+            elif cfg.compression.lower() == 'xz':
+                self.compression = 'xz'
+            elif cfg.compression.lower() == 'zip':
+                self.compression = 'zip'
             else:
                 logging.critical("init(): Unsupported compression: " + cfg.compression)
                 sys.exit(1)
@@ -61,9 +65,6 @@ class Pyalgofetcher:
 
     def write_df(self, abs_filename, df):
         """ Write the dataframe to a file. Format details are in the config data"""
-        # If compression is enabled, append the extension to the filename
-        if self.compression is not None and self.compression.lower() != "none":
-            abs_filename += "." + self.compression.replace(".", "")
         logging.info("Writing dataframe to:" + abs_filename)
         if self.output_format == "csv":
             csv_header = self.cfg_data['output']['format_args']['header']
@@ -81,8 +82,17 @@ class Pyalgofetcher:
             logging.critical("write_df(): Unsupported output format parameter: " + self.output_format)
             sys.exit(1)
 
+    def make_rel_filename(self, feed_type, symbol):
+        """ Create a filename given the feed parameters """
+        rel_filename = feed_type + "_" + symbol + "_"
+        rel_filename += self.start_date + "_" + self.end_date + "." + self.output_format
+        # If compression is enabled, append the extension to the filename
+        if self.compression is not None and self.compression.lower() != "none":
+            rel_filename += "." + self.compression.replace(".", "")
+        return rel_filename
+
     def process_pdr_feed(self, feed, feed_dir, feed_type):
-        """ Process data that is read via the pandas_datareader API """
+        """ Process data that is read via the pandas datareader API """
         logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
         args = self.cfg_data['feeds'][feed]['args']
         logging.debug("Args:" + str(args))
@@ -100,9 +110,7 @@ class Pyalgofetcher:
                 "No data found for feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
             sys.exit(1)
         # Name the file such that we can put all files in one dir and later be able to identify its details
-        output_format = self.output_format
-        rel_filename = feed_type + "_" + source + "_" + symbol + "_"
-        rel_filename += self.start_date + "_" + self.end_date + "." + output_format
+        rel_filename = self.make_rel_filename(feed_type, symbol)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 
@@ -129,7 +137,7 @@ class Pyalgofetcher:
             sys.exit(1)
         # Name the file such that we can put all files in one dir and later be able to identify its details
         output_format = self.output_format
-        rel_filename = feed_type + "_" + symbol + "_" + self.start_date + "_" + self.end_date + "." + output_format
+        rel_filename = self.make_rel_filename(feed_type, symbol)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 

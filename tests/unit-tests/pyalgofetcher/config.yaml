@@ -13,7 +13,7 @@ output:
     # JSON
     orient: "records" # one per line for human readability
     # CSV and JSON
-    compression: None # or "gz". Other compression types probably result in "unsupported compression" errors
+    compression: None # or "gz", "bz2", "xz", and, less preferred, "zip"
 
 # List the feeds in this section
 #
