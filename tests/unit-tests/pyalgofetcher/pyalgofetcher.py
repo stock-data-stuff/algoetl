@@ -81,7 +81,7 @@ class Pyalgofetcher:
             logging.critical("write_df(): Unsupported output format parameter: " + self.output_format)
             sys.exit(1)
 
-    def process_pandas_datareader_feed(self, feed, feed_dir, feed_type):
+    def process_pdr_feed(self, feed, feed_dir, feed_type):
         """ Process data that is read via the pandas_datareader API """
         logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
         args = self.cfg_data['feeds'][feed]['args']
@@ -106,7 +106,7 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 
-    def process_markets_new_york_fed_org(self, feed, feed_dir, feed_type):
+    def process_fed_feed(self, feed, feed_dir, feed_type):
         """ Process data that is read from the New York Fed website (rest) API """
         logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
         args = self.cfg_data['feeds'][feed]['args']
@@ -155,12 +155,12 @@ class Pyalgofetcher:
         feed_cfg = self.cfg_data["feeds"][feed]
         logging.debug("Feed cfg: " + str(feed_cfg))
         feed_type = feed_cfg['type']
-        if feed_type == 'pandas_datareader':
+        if feed_type == 'pdr':
             feed_dir = self.create_feed_dir(feed, feed_type)
-            self.process_pandas_datareader_feed(feed, feed_dir, feed_type)
-        elif feed_type == 'markets_new_york_fed_org':
+            self.process_pdr_feed(feed, feed_dir, feed_type)
+        elif feed_type == 'fed':
             feed_dir = self.create_feed_dir(feed, feed_type)
-            self.process_markets_new_york_fed_org(feed, feed_dir, feed_type)
+            self.process_fed_feed(feed, feed_dir, feed_type)
         else:
             logging.critical("Feed:" + feed + " has an invalid type:" + feed_type)
             sys.exit(1)

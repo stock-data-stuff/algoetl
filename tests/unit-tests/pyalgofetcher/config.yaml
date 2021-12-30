@@ -28,7 +28,7 @@ output:
 feeds:
   #docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
   FED_Soma: # Seems to hang when queried for "too many" days at a time
-    type: markets_new_york_fed_org
+    type: fed
     args:
       symbol: "FED_Soma"
       productCode: "30"
@@ -37,12 +37,12 @@ feeds:
       format: "csv"
   #docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
-    type: pandas_datareader
+    type: pdr
     args:
       symbol: "VIX"
       source: "yahoo"
   SPY:
-    type: pandas_datareader
+    type: pdr
     args:
       symbol: "SPY"
       source: "yahoo"
