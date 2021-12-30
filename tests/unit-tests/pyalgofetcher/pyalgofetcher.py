@@ -174,12 +174,13 @@ class Pyalgofetcher:
             logging.info("Processing just feed: " + self.feed_name)
         # Process the given feed, or ALL feeds.
         feeds = self.cfg_data['feeds']
-        logging.debug("Feeds: " + str(feeds))
         for feed in feeds:
             logging.debug("Feed: " + str(feed))
             if feed == self.feed_name or self.feed_name == 'ALL':
                 logging.debug("Processing feed with name: " + feed)
                 self.process_feed(feed)
+            else:
+                logging.debug("Skipping feed with name: " + feed)
 
 
 def read_cli_args(argv):
