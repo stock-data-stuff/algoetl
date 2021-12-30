@@ -1,0 +1,11 @@
+# This config file controls the pyalgofetcher program
+
+# List the feeds in this section
+feeds:
+  - name: VIX
+    type: pandas-datareader
+    # https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
+    pandas-datareader-args:
+      symbol: "VIX"
+      sourc: "yahoo"
+
