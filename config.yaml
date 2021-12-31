@@ -1,26 +1,33 @@
 # This config file controls the pyalgofetcher program
 
-output:
-  # Support some formats, via https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html
-  #format: "csv"
-  format: json
-  format_args:
-    # CSV
-    header: true # header line
-    # JSON
-    orient: "records" # or "table"
-    # CSV and JSON
-    compression: None # or "gz", "bz2", "xz", and, less preferred, "zip"
+# TODO: add support for writing to multiple destinations (in the same run)
+# Places to write the data we fetch
+output_destinations: "file"
+#destinations: "file,postgresql"
+
+output_config:
+  file:
+    # CSV and JSON are supported via https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html
+    #format: "csv"
+    format: json
+    format_args:
+      # CSV
+      header: true # header line
+      # JSON
+      orient: "records" # or "table"
+      # CSV and JSON
+      compression: None # or "gz", "bz2", "xz", and, less preferred, "zip"
+  #postgresql:
 
 # List the feeds in this section
 #
 # Every feed is identified by a key (e.g. FED_Soma)
 # Do not use a key (under "feeds:") of "ALL" since it is reserved to mean "load all feeds here"
 #
-# Each feed must have a type
-# It's helpful to group feeds here by type (for human readability)
+# Each feed must have an API section
+# It's helpful to group feeds here by API (for human readability)
 feeds:
-  #docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
+  # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
   FED_Soma: # Seems to hang when queried for "too many" days at a time
     api: fed
     api_args:
@@ -30,12 +37,13 @@ feeds:
       holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
       format: "csv"
     data_constraints:
-      # Somehow deal with the fact that this API seems to only succeed if a year of data is pulled
+      # Somehow deal with the fact that this API is fragile.
+      # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
       # FAIL
-      # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1990-01-30 -d /tmp
+      #  ./pyalgofetcher.py -f FED_Soma -s 1990-11-01 -e 1990-12-31 -d /tmp
       # SUCCEED
       # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
-  #docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
+  # API docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
     api: pdr
     api_args:

@@ -44,7 +44,7 @@ class Pyalgofetcher:
                 logging.critical("init(): Unsupported output format parameter: " + cfg.output_format)
                 sys.exit(1)
         else:
-            self.output_format = self.cfg_data['output']['format']
+            self.output_format = self.cfg_data['output_config']['file']['format']
         logging.info("Output format is:" + self.output_format)
         # Allow overriding the compression
         if cfg.compression is not None:
@@ -60,7 +60,7 @@ class Pyalgofetcher:
                 logging.critical("init(): Unsupported compression: " + cfg.compression)
                 sys.exit(1)
         else:
-            self.compression = self.cfg_data['output']['format_args']['compression']
+            self.compression = self.cfg_data['output_config']['file']['format_args']['compression']
         logging.info("Compression is:" + self.compression)
 
     def write_df(self, abs_filename, df):
@@ -75,13 +75,13 @@ class Pyalgofetcher:
             return
         logging.info("Writing dataframe with rowcount: " + str(rowcount) + " to file:" + abs_filename)
         if self.output_format == "csv":
-            csv_header = self.cfg_data['output']['format_args']['header']
+            csv_header = self.cfg_data['output_config']['file']['format_args']['header']
             if str(csv_header).lower() == 'false':
                 df.to_csv(abs_filename, header=None, index=False)
             else:
                 df.to_csv(abs_filename, index=False)
         elif self.output_format == "json":
-            orient = self.cfg_data['output']['format_args']['orient']
+            orient = self.cfg_data['output_config']['file']['format_args']['orient']
             if str(orient).lower() == 'table':
                 df.to_json(abs_filename, orient="table")
             if str(orient).lower() == 'records':
@@ -249,13 +249,17 @@ def read_cli_args(argv):
                         help='End date to fetch data. Default:'
                              + end_date,
                         default=end_date)
+    parser.add_argument('-O', '--output-destinations',
+                        action='store', type=str, dest="output_destinations",
+                        help='Output Destinations. Currently, only supports "file". Default: from config file',
+                        default=output_format)
     parser.add_argument('-o', '--output-format',
                         action='store', type=str, dest="output_format",
-                        help='Output format. csv and json are supported. Default: from config file',
+                        help='Output format for files. csv and json are supported. Default: from config file',
                         default=output_format)
     parser.add_argument('-C', '--compression',
                         action='store', type=str, dest="compression",
-                        help='Compression type: None,gz, bz2, xz, or zip. Default: from config file',
+                        help='Compression type for files: None,gz, bz2, xz, or zip. Default: from config file',
                         default=compression)
     args = parser.parse_args()
     return args
