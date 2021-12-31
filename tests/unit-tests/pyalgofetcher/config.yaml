@@ -11,7 +11,7 @@ output:
     # CSV
     header: true # header line
     # JSON
-    orient: "records" # one per line for human readability
+    orient: "records" # or "table"
     # CSV and JSON
     compression: None # or "gz", "bz2", "xz", and, less preferred, "zip"
 
@@ -22,9 +22,6 @@ output:
 #
 # Each feed must have a type
 # It's helpful to group feeds here by type (for human readability)
-#
-# Each feed must have an "args" key containing a "symbol" key.
-# The symbol is used to identify the feed (e.g. name the directory that holds the feed)
 feeds:
   #docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
   FED_Soma: # Seems to hang when queried for "too many" days at a time
@@ -35,6 +32,12 @@ feeds:
       query: "details"
       holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
       format: "csv"
+    data_constraints:
+      # Somehow deal with the fact that some pulls fail
+      # FAIL
+      # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1990-01-30
+      # SUCCEED
+      max_days: 2
   #docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
     type: pdr

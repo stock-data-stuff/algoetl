@@ -65,7 +65,15 @@ class Pyalgofetcher:
 
     def write_df(self, abs_filename, df):
         """ Write the dataframe to a file. Format details are in the config data"""
-        logging.info("Writing dataframe to:" + abs_filename)
+        logging.info("Writing dataframe to file:" + abs_filename)
+        if df is None:
+            logging.warning("Dataframe is None. Exiting")
+            return
+        rowcount = df.values.size
+        if rowcount == 0:
+            logging.warning("Dataframe has no rows")
+            return
+        logging.info("Writing dataframe with rowcount: " + str(rowcount) + " to file:" + abs_filename)
         if self.output_format == "csv":
             csv_header = self.cfg_data['output']['format_args']['header']
             if str(csv_header).lower() == 'false':
@@ -74,18 +82,24 @@ class Pyalgofetcher:
                 df.to_csv(abs_filename)
         elif self.output_format == "json":
             orient = self.cfg_data['output']['format_args']['orient']
+            if str(orient).lower() == 'table':
+                df.to_json(abs_filename, orient="table")
             if str(orient).lower() == 'records':
                 df.to_json(abs_filename, orient="records", lines=True)
             else:
-                df.to_json(abs_filename)
+                logging.critical("Unsupported value of orient:" + orient)
+                sys.exit(1)
         else:
             logging.critical("write_df(): Unsupported output format parameter: " + self.output_format)
             sys.exit(1)
 
-    def make_rel_filename(self, feed_type, symbol):
+    def make_rel_filename(self, feed_type, feed):
         """ Create a filename given the feed parameters """
-        rel_filename = feed_type + "_" + symbol + "_"
-        rel_filename += self.start_date + "_" + self.end_date + "." + self.output_format
+        rel_filename = feed_type
+        rel_filename += "_" + feed
+        rel_filename += "_" + self.end_date
+        rel_filename += "_" + self.start_date
+        rel_filename += "." + self.output_format
         # If compression is enabled, append the extension to the filename
         if self.compression is not None and self.compression.lower() != "none":
             rel_filename += "." + self.compression.replace(".", "")
@@ -110,7 +124,7 @@ class Pyalgofetcher:
                 "No data found for feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
             sys.exit(1)
         # Name the file such that we can put all files in one dir and later be able to identify its details
-        rel_filename = self.make_rel_filename(feed_type, symbol)
+        rel_filename = self.make_rel_filename(feed_type, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 
@@ -136,8 +150,7 @@ class Pyalgofetcher:
                 "Error while fetching data. feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
             sys.exit(1)
         # Name the file such that we can put all files in one dir and later be able to identify its details
-        output_format = self.output_format
-        rel_filename = self.make_rel_filename(feed_type, symbol)
+        rel_filename = self.make_rel_filename(feed_type, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 
@@ -189,6 +202,7 @@ class Pyalgofetcher:
                 self.process_feed(feed)
             else:
                 logging.debug("Skipping feed with name: " + feed)
+        logging.info("Successfully finished processing")
 
 
 def read_cli_args(argv):
