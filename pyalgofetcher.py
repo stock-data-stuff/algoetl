@@ -255,7 +255,7 @@ def read_cli_args(argv):
                         default=output_format)
     parser.add_argument('-C', '--compression',
                         action='store', type=str, dest="compression",
-                        help='Compression. Default: from config file',
+                        help='Compression type: None,gz, bz2, xz, or zip. Default: from config file',
                         default=compression)
     args = parser.parse_args()
     return args
