@@ -2,9 +2,6 @@
 
 output:
   # Support some formats, via https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html
-  # AVOID CSV!
-  # We get headers that have a NULL/missing first column, like this in the Fed data: ",As Of Date,CUSIP,".
-  # JSON takes up more space, but we can compress it if necessary.
   #format: "csv"
   format: json
   format_args:
@@ -33,11 +30,11 @@ feeds:
       holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
       format: "csv"
     data_constraints:
-      # Somehow deal with the fact that some pulls fail
+      # Somehow deal with the fact that this API seems to only succeed if a year of data is pulled
       # FAIL
-      # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1990-01-30
+      # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1990-01-30 -d /tmp
       # SUCCEED
-      max_days: 2
+      # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
   #docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
     type: pdr

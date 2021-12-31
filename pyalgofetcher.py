@@ -77,9 +77,9 @@ class Pyalgofetcher:
         if self.output_format == "csv":
             csv_header = self.cfg_data['output']['format_args']['header']
             if str(csv_header).lower() == 'false':
-                df.to_csv(abs_filename, header=None)
+                df.to_csv(abs_filename, header=None, index=False)
             else:
-                df.to_csv(abs_filename)
+                df.to_csv(abs_filename, index=False)
         elif self.output_format == "json":
             orient = self.cfg_data['output']['format_args']['orient']
             if str(orient).lower() == 'table':
