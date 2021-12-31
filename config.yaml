@@ -22,8 +22,8 @@ output:
 feeds:
   #docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
   FED_Soma: # Seems to hang when queried for "too many" days at a time
-    type: fed
-    args:
+    api: fed
+    api_args:
       symbol: "FED_Soma"
       productCode: "30"
       query: "details"
@@ -37,12 +37,12 @@ feeds:
       # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
   #docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
-    type: pdr
-    args:
+    api: pdr
+    api_args:
       symbol: "VIX"
       source: "yahoo"
   SPY:
-    type: pdr
-    args:
+    api: pdr
+    api_args:
       symbol: "SPY"
       source: "yahoo"

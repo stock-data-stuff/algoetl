@@ -93,9 +93,9 @@ class Pyalgofetcher:
             logging.critical("write_df(): Unsupported output format parameter: " + self.output_format)
             sys.exit(1)
 
-    def make_rel_filename(self, feed_type, feed):
+    def make_rel_filename(self, feed_api, feed):
         """ Create a filename given the feed parameters """
-        rel_filename = feed_type
+        rel_filename = feed_api
         rel_filename += "_" + feed
         rel_filename += "_" + self.end_date
         rel_filename += "_" + self.start_date
@@ -105,11 +105,11 @@ class Pyalgofetcher:
             rel_filename += "." + self.compression.replace(".", "")
         return rel_filename
 
-    def process_pdr_feed(self, feed, feed_dir, feed_type):
+    def process_pdr_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read via the pandas datareader API """
-        logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
-        args = self.cfg_data['feeds'][feed]['args']
-        logging.debug("Args:" + str(args))
+        logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
+        args = self.cfg_data['feeds'][feed]['api_args']
+        logging.debug("API args:" + str(args))
         symbol = args['symbol']
         source = args['source']
         start = datetime.datetime.fromisoformat(self.start_date)
@@ -124,15 +124,15 @@ class Pyalgofetcher:
                 "No data found for feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
             sys.exit(1)
         # Name the file such that we can put all files in one dir and later be able to identify its details
-        rel_filename = self.make_rel_filename(feed_type, feed)
+        rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 
-    def process_fed_feed(self, feed, feed_dir, feed_type):
+    def process_fed_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from the New York Fed website (rest) API """
-        logging.info("Loading feed_type: " + feed_type + " feed:" + feed)
-        args = self.cfg_data['feeds'][feed]['args']
-        logging.debug("Args:" + str(args))
+        logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
+        args = self.cfg_data['feeds'][feed]['api_args']
+        logging.debug("API args:" + str(args))
         symbol = args['symbol']
         product_code = args['productCode']
         query = args['query']
@@ -150,23 +150,23 @@ class Pyalgofetcher:
                 "Error while fetching data. feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
             sys.exit(1)
         # Name the file such that we can put all files in one dir and later be able to identify its details
-        rel_filename = self.make_rel_filename(feed_type, feed)
+        rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 
-    def create_feed_dir(self, feed, feed_type):
+    def create_feed_dir(self, feed, feed_api):
         """ Ensure the directory to hold the data for this feed exists. Return its path """
-        type_dir = os.path.normpath(os.path.join(self.history_dir, feed_type))
-        if os.path.isdir(type_dir):
-            logging.debug("History Type directory for feed:" + feed + " exists at:" + type_dir)
+        feed_api_dir = os.path.normpath(os.path.join(self.history_dir, feed_api))
+        if os.path.isdir(feed_api_dir):
+            logging.debug("API Directory for feed:" + feed + " exists at:" + feed_api_dir)
         else:
-            logging.debug("Creating history type directory for feed:" + feed + " at:" + type_dir)
-            os.mkdir(type_dir)
-        hist_dir = os.path.normpath(os.path.join(type_dir, feed))
+            logging.debug("Creating API directory for feed:" + feed + " at:" + feed_api_dir)
+            os.mkdir(feed_api_dir)
+        hist_dir = os.path.normpath(os.path.join(feed_api_dir, feed))
         if os.path.isdir(hist_dir):
-            logging.debug("History directory for feed:" + feed + " exists at:" + hist_dir)
+            logging.debug("Feed history directory for feed:" + feed + " exists at:" + hist_dir)
         else:
-            logging.debug("Creating history directory for feed:" + feed + " at:" + hist_dir)
+            logging.debug("Creating feed history directory for feed:" + feed + " at:" + hist_dir)
             os.mkdir(hist_dir)
         return hist_dir
 
@@ -175,15 +175,15 @@ class Pyalgofetcher:
         """
         feed_cfg = self.cfg_data["feeds"][feed]
         logging.debug("Feed cfg: " + str(feed_cfg))
-        feed_type = feed_cfg['type']
-        if feed_type == 'pdr':
-            feed_dir = self.create_feed_dir(feed, feed_type)
-            self.process_pdr_feed(feed, feed_dir, feed_type)
-        elif feed_type == 'fed':
-            feed_dir = self.create_feed_dir(feed, feed_type)
-            self.process_fed_feed(feed, feed_dir, feed_type)
+        feed_api = feed_cfg['api']
+        if feed_api == 'pdr':
+            feed_dir = self.create_feed_dir(feed, feed_api)
+            self.process_pdr_feed(feed, feed_dir, feed_api)
+        elif feed_api == 'fed':
+            feed_dir = self.create_feed_dir(feed, feed_api)
+            self.process_fed_feed(feed, feed_dir, feed_api)
         else:
-            logging.critical("Feed:" + feed + " has an invalid type:" + feed_type)
+            logging.critical("Feed:" + feed + " has an invalid api:" + feed_api)
             sys.exit(1)
 
     def run(self):
