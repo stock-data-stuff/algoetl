@@ -1,6 +1,0 @@
-
-# Generated csv files
-*.csv
-
-# python virtual env
-.venv
