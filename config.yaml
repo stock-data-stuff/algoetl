@@ -28,7 +28,7 @@ output_config:
 # It's helpful to group feeds here by API (for human readability)
 feeds:
   # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
-  FED_Soma: # Seems to hang when queried for "too many" days at a time
+  FED_Soma:
     api: fed
     api_args:
       symbol: "FED_Soma"
@@ -36,7 +36,7 @@ feeds:
       query: "details"
       holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
       format: "csv"
-    data_constraints:
+    api_constraints:
       # Somehow deal with the fact that this API is fragile.
       # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
       # FAIL
