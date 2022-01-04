@@ -52,3 +52,9 @@ test: deps
 run: clean
 	$(info Running the script without any setup...)
 	$(RUN_IMPORT)
+
+# $(shell) munges the output onto one line
+lint: deps
+	$(info Running some static code analysis)
+	source $(VENV_DIR)/bin/activate && python -m pip install pylint && pylint ./*.py
+

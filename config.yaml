@@ -58,7 +58,12 @@ feeds:
   SC:
     api: sc
     api_args:
-      # Do not put private information in this file!
-      # Override the username and password in a (private) override config file
+
+
+# Do not put private information in this file!
+# Copy this section into a file ./overrides.yaml and set the parameters there.
+credentials:
+  feed_type:
+    whysper:
       username: username-override-me
       password: password-override-me
