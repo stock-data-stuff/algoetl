@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """ This program fetches some data, as defined by the given config file."""
-
 import os
 import sys
 import argparse
@@ -60,7 +59,8 @@ class Pyalgofetcher:
                 logging.critical("init(): Unsupported compression: %s", cfg.compression)
                 sys.exit(1)
         else:
-            self.compression = self.config_data['output_config']['file']['format_args']['compression']
+            self.compression = \
+                self.config_data['output_config']['file']['format_args']['compression']
         logging.info("Compression is: %s", self.compression)
 
     def process_config_data(self, cfg):
@@ -85,7 +85,6 @@ class Pyalgofetcher:
         else:
             logging.critical("Config file does not exist: %s", self.config_file)
             sys.exit(1)
-
         # Read override file if it exists
         override_file_data = {}
         if os.path.isfile(self.override_file):
@@ -94,13 +93,11 @@ class Pyalgofetcher:
                     override_file_data = yaml.safe_load(stream)
                 except yaml.YAMLError as exc:
                     logging.critical(exc)
-
         # Store the (merged) config data in self.config_data
         self.config_data = orig_config_data
         # print("Applying override_file_data: " + str(override_file_data))
         if override_file_data is not None:
             self.config_data = merge(orig_config_data, override_file_data)
-
         # Store the resulting merged data to a file (if given a 'merged_file'
         if self.merged_file is not None:
             # Ensure parent directory for merged file exists
@@ -192,13 +189,7 @@ class Pyalgofetcher:
         url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
         url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
         # Fetch the data into a dataframe
-        try:
-            data_frame = pd.read_csv(url)
-        except Exception as general_exception:
-            logging.error("Failed to get data. Error: %s", str(general_exception))
-            logging.critical("No data found for feed: %s for range: %s to %s",
-                             feed, self.start_date, self.end_date)
-            sys.exit(1)
+        data_frame = pd.read_csv(url)
         # Write the file
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -212,7 +203,7 @@ class Pyalgofetcher:
         args = self.config_data['feeds'][feed]['api_args']
         logging.debug("API args: %s", str(args))
         #username = args['username']
-        password = args['password']
+        #password = args['password']
         # Construct the query URL
         #TODO: stockcharts
         url = ''
@@ -220,13 +211,7 @@ class Pyalgofetcher:
         #url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
         #url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
         # Fetch the data into a dataframe
-        try:
-            data_frame = pd.read_csv(url)
-        except Exception as general_exception:
-            logging.error("Failed to get data. Error: %s", str(general_exception))
-            logging.critical("No data found for feed: %s for range: %s to %s",
-                             feed, self.start_date, self.end_date)
-            sys.exit(1)
+        data_frame = pd.read_csv(url)
         # Write the file
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -246,13 +231,7 @@ class Pyalgofetcher:
         # url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
         # url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
         # Fetch the data into a dataframe
-        try:
-            data_frame = pd.read_csv(url)
-        except Exception as general_exception:
-            logging.error("Failed to get data. Error: %s", str(general_exception))
-            logging.critical("No data found for feed: %s for range: %s to %s",
-                             feed, self.start_date, self.end_date)
-            sys.exit(1)
+        data_frame = pd.read_csv(url)
         # Write the file
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -326,7 +305,7 @@ def merge(dict_a, dict_b, path=None, update=True):
             elif dict_a[key] == dict_b[key]:
                 pass  # same leaf value
             elif isinstance(dict_a[key], list) and isinstance(dict_b[key], list):
-                for idx, val in enumerate(dict_b[key]):
+                for idx in enumerate(dict_b[key]):
                     dict_a[key][idx] = merge(dict_a[key][idx],
                                              dict_b[key][idx],
                                              path + [str(key), str(idx)],
@@ -334,13 +313,14 @@ def merge(dict_a, dict_b, path=None, update=True):
             elif update:
                 dict_a[key] = dict_b[key]
             else:
-                raise Exception('Conflict at %s', (path + [str(key)]) )
+                msg = 'Conflict at %s', (path + [str(key)])
+                raise Exception( msg )
         else:
             dict_a[key] = dict_b[key]
     return dict_a
 
 
-def read_cli_args(argv):
+def read_cli_args():
     """ Read the CLI args and return sane settings
     """
     # Hard-coded Defaults
@@ -428,10 +408,10 @@ def configure_logging(cfg):
     logging.info("Logging test INFO message")
 
 
-def main(argv):
+def main():
     """ Main program """
     # First create a merged config file
-    app_cfg = read_cli_args(argv)
+    app_cfg = read_cli_args()
     #
     configure_logging(app_cfg)
     app = Pyalgofetcher(app_cfg)
@@ -439,4 +419,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
