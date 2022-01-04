@@ -154,7 +154,31 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, df)
 
-    def create_feed_dir(self, feed, feed_api):
+    def process_sc_feed(self, feed, feed_dir, feed_api):
+        """ Process data that is read from StockCharts """
+        logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
+        args = self.cfg_data['feeds'][feed]['api_args']
+        logging.debug("API args:" + str(args))
+        username = args['username']
+        password = args['password']
+        # Construct the query URL
+        url = 'https://markets.newyorkfed.org/read?productCode=' + product_code
+        url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
+        url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
+        # Fetch the data into a dataframe
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            logging.error("Failed to get data. Error:" + str(e))
+            logging.critical(
+                "Error while fetching data. feed:" + feed + " for range: " + self.start_date + " to " + self.end_date)
+            sys.exit(1)
+        # Name the file such that we can put all files in one dir and later be able to identify its details
+        rel_filename = self.make_rel_filename(feed_api, feed)
+        abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
+        self.write_df(abs_filename, df)
+
+    def create_feed_api_dir(self, feed, feed_api):
         """ Ensure the directory to hold the data for this feed exists. Return its path """
         feed_api_dir = os.path.normpath(os.path.join(self.history_dir, feed_api))
         if os.path.isdir(feed_api_dir):
@@ -177,11 +201,14 @@ class Pyalgofetcher:
         logging.debug("Feed cfg: " + str(feed_cfg))
         feed_api = feed_cfg['api']
         if feed_api == 'pdr':
-            feed_dir = self.create_feed_dir(feed, feed_api)
+            feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_pdr_feed(feed, feed_dir, feed_api)
         elif feed_api == 'fed':
-            feed_dir = self.create_feed_dir(feed, feed_api)
+            feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_fed_feed(feed, feed_dir, feed_api)
+        elif feed_api == 'sc':
+            feed_dir = self.create_feed_api_dir(feed, feed_api)
+            self.process_sc_feed(feed, feed_dir, feed_api)
         else:
             logging.critical("Feed:" + feed + " has an invalid api:" + feed_api)
             sys.exit(1)
