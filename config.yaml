@@ -54,3 +54,11 @@ feeds:
     api_args:
       symbol: "SPY"
       source: "yahoo"
+  # StockCharts
+  SC:
+    api: sc
+    api_args:
+      # Do not put private information in this file!
+      # Override the username and password in a (private) override config file
+      username: username-override-me
+      password: password-override-me
