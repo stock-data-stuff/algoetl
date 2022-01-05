@@ -5,3 +5,5 @@
 
 overrides.yaml
 .effective-config.yaml
+
+*.log

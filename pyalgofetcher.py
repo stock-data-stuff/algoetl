@@ -6,11 +6,11 @@ import argparse
 import logging
 import datetime
 from pathlib import Path
+
+import selenium.common.exceptions
 import yaml
 import pandas_datareader as web
 import pandas as pd
-#
-# import packages for web scraping
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -225,6 +225,16 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
 
+    def get_via_xpath(self, driver, element_xpath):
+        """ This is just a convenience wrapper to call the Selenium code """
+        try:
+            element = WebDriverWait(driver, 20, 0.5).until(EC.element_to_be_clickable((By.XPATH, element_xpath)))
+        except selenium.common.exceptions.NoSuchElementException as nse_exception:
+            logging.error("Error searching for element with xpath: %s", element_xpath)
+            logging.error("Got exception: %s", nse_exception)
+            sys.exit(1)
+        return element
+
     def process_whysper_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from Whysper.io """
         logging.info("Loading feed with api: %s feed: %s", feed_api, feed)
@@ -234,9 +244,9 @@ class Pyalgofetcher:
         creds = self.config_data['credentials']['feed_api'][feed_api]
         username = creds['username']
         password = creds['password']
-        # Assume Firfox with Gecko Driver
-        options = webdriver.FirefoxOptions()
-        options.add_argument("--ignore-certificate-errors")
+        # Assume Firefox with Gecko Driver
+        #options = webdriver.FirefoxOptions()
+        #options.add_argument("--profile <some_path>")
         driver = webdriver.Firefox()
         #driver.maximize_window()
         driver.get(url)
@@ -244,14 +254,21 @@ class Pyalgofetcher:
         driver.implicitly_wait(1)
         logging.debug("URL is currently: %s", driver.current_url)
         # Click on the sandwich
-        element_xpath = '/html/body/nav/div/div[1]/button'
-        try:
-            # element = driver.find_elements(By.XPATH, element_xpath)
-            element = WebDriverWait(driver, 20, 0.5).until(EC.element_to_be_clickable((By.XPATH, element_xpath)))
-        except Exception as an_exception:
-            logging.error("Got Error: %s", str(an_exception))
-
+        element = self.get_via_xpath(driver, '/html/body/nav/div/div[1]/button')
         element.click()
+        # Click on Login
+        element = self.get_via_xpath(driver, '/html/body/nav/div/div[2]/ul/li[9]/a')
+        element.click()
+        # Enter username
+        element = self.get_via_xpath(driver, '//*[@id="Input_Email"]')
+        element.send_keys(username)
+        # Enter password
+        element = self.get_via_xpath(driver, '//*[@id="Input_Password"]')
+        element.send_keys(password)
+        # Click on the second "log in" button
+        element = self.get_via_xpath(driver, '/html/body/section/div[2]/div[1]/section/form/div[5]/button')
+        element.click()
+        logging.info("Should be logged in now")
 
         # TODO: whysper feed
         driver.close() # close the current window
@@ -299,7 +316,7 @@ class Pyalgofetcher:
             feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_whysper_feed(feed, feed_dir, feed_api)
         else:
-            logging.critical("Feed:" + feed + " has an invalid api:" + feed_api)
+            logging.critical("Feed: %s has an invalid api: %s", feed, feed_api)
             sys.exit(1)
 
     def run(self):
@@ -440,9 +457,7 @@ def configure_logging(cfg):
 
 def main():
     """ Main program """
-    # First create a merged config file
     app_cfg = read_cli_args()
-    #
     configure_logging(app_cfg)
     app = Pyalgofetcher(app_cfg)
     app.run()
