@@ -58,12 +58,16 @@ feeds:
   SC:
     api: sc
     api_args:
-
+  # Whysper
+  WHYSPER_1:
+    api: whysper
+    api_args:
+      url: "https://whysper.io"
 
 # Do not put private information in this file!
 # Copy this section into a file ./overrides.yaml and set the parameters there.
 credentials:
-  feed_type:
+  feed_api:
     whysper:
       username: username-override-me
       password: password-override-me

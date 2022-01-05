@@ -9,6 +9,14 @@ from pathlib import Path
 import yaml
 import pandas_datareader as web
 import pandas as pd
+#
+# import packages for web scraping
+from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import re
+from tqdm import tqdm
 
 
 class Pyalgofetcher:
@@ -219,23 +227,42 @@ class Pyalgofetcher:
 
     def process_whysper_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from Whysper.io """
-        logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
-        args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(args))
-        #username = args['username']
-        #password = args['password']
-        # Construct the query URL
+        logging.info("Loading feed with api: %s feed: %s", feed_api, feed)
+        api_args = self.config_data['feeds'][feed]['api_args']
+        logging.debug("API args: %s", str(api_args))
+        url = api_args['url']
+        creds = self.config_data['credentials']['feed_api'][feed_api]
+        username = creds['username']
+        password = creds['password']
+        # Assume Firfox with Gecko Driver
+        options = webdriver.FirefoxOptions()
+        options.add_argument("--ignore-certificate-errors")
+        driver = webdriver.Firefox()
+        #driver.maximize_window()
+        driver.get(url)
+        logging.debug("Opened URL: %s", driver.current_url)
+        driver.implicitly_wait(1)
+        logging.debug("URL is currently: %s", driver.current_url)
+        # Click on the sandwich
+        element_xpath = '/html/body/nav/div/div[1]/button'
+        try:
+            # element = driver.find_elements(By.XPATH, element_xpath)
+            element = WebDriverWait(driver, 20, 0.5).until(EC.element_to_be_clickable((By.XPATH, element_xpath)))
+        except Exception as an_exception:
+            logging.error("Got Error: %s", str(an_exception))
+
+        element.click()
+
         # TODO: whysper feed
-        url = ''
-        # url = 'https://markets.newyorkfed.org/read?productCode=' + product_code
-        # url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
-        # url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
+        driver.close() # close the current window
+        driver.quit() # close all windows and exit
+
         # Fetch the data into a dataframe
-        data_frame = pd.read_csv(url)
+        #data_frame = pd.read_csv(url)
         # Write the file
-        rel_filename = self.make_rel_filename(feed_api, feed)
-        abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
-        self.write_df(abs_filename, data_frame)
+        #rel_filename = self.make_rel_filename(feed_api, feed)
+        #abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
+        #self.write_df(abs_filename, data_frame)
 
     def create_feed_api_dir(self, feed, feed_api):
         """ Ensure the directory to hold the data for this feed exists. Return its path """
@@ -258,7 +285,7 @@ class Pyalgofetcher:
         """
         feed_cfg = self.config_data["feeds"][feed]
         logging.debug("Feed cfg: %s", str(feed_cfg))
-        feed_api = feed_cfg['api']
+        feed_api = str(feed_cfg['api']).lower()
         if feed_api == 'pdr':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_pdr_feed(feed, feed_dir, feed_api)
@@ -268,6 +295,9 @@ class Pyalgofetcher:
         elif feed_api == 'sc':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_sc_feed(feed, feed_dir, feed_api)
+        elif feed_api == 'whysper':
+            feed_dir = self.create_feed_api_dir(feed, feed_api)
+            self.process_whysper_feed(feed, feed_dir, feed_api)
         else:
             logging.critical("Feed:" + feed + " has an invalid api:" + feed_api)
             sys.exit(1)
@@ -329,7 +359,7 @@ def read_cli_args():
     cur_dir = os.getcwd()
     config_file = os.path.normpath(os.path.join(cur_dir, "config.yaml"))
     override_file = os.path.normpath(os.path.join(cur_dir, "overrides.yaml"))
-    merged_file = os.path.normpath(os.path.join(cur_dir, ".config.yaml"))
+    merged_file = os.path.normpath(os.path.join(cur_dir, ".effective-config.yaml"))
     # App specific
     history_dir = os.path.normpath(os.path.join(cur_dir, "feed-history"))
     feed = 'ALL'
