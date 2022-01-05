@@ -226,7 +226,7 @@ class Pyalgofetcher:
         self.write_df(abs_filename, data_frame)
 
     def get_via_xpath(self, driver, element_xpath):
-        """ This is just a convenience wrapper to call the Selenium code """
+        """ This is just a convenience wrapper to call the Selenium code"""
         try:
             element = WebDriverWait(driver, 20, 0.5).until(EC.element_to_be_clickable((By.XPATH, element_xpath)))
         except selenium.common.exceptions.NoSuchElementException as nse_exception:
@@ -269,17 +269,12 @@ class Pyalgofetcher:
         element = self.get_via_xpath(driver, '/html/body/section/div[2]/div[1]/section/form/div[5]/button')
         element.click()
         logging.info("Should be logged in now")
-
-        # TODO: whysper feed
+        # Click on website feeds
+        element = self.get_via_xpath(driver, '/html/body/nav/div/div[2]/ul/li[4]/a')
+        element.click()
+        # Cleanup and Quit
         driver.close() # close the current window
         driver.quit() # close all windows and exit
-
-        # Fetch the data into a dataframe
-        #data_frame = pd.read_csv(url)
-        # Write the file
-        #rel_filename = self.make_rel_filename(feed_api, feed)
-        #abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
-        #self.write_df(abs_filename, data_frame)
 
     def create_feed_api_dir(self, feed, feed_api):
         """ Ensure the directory to hold the data for this feed exists. Return its path """
