@@ -49,6 +49,10 @@ feeds:
     api: sc
     api_args:
       symbol: "IBM" # used to construct the URL to fetch the data
+  AAPL: # used to name the directory and file with the data
+    api: sc
+    api_args:
+      symbol: "AAPL" # used to construct the URL to fetch the data
   # API docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   #
   # WTF... as of 2022-01-05, this is not returning dates

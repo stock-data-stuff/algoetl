@@ -254,6 +254,7 @@ class Pyalgofetcher:
         logging.info("Cleaning up web driver")
         if self.our_web_driver is not None:
             self.our_web_driver.quit()
+            self.our_web_driver = None
 
     def get_our_web_driver(self):
         """ Reuse the Selenium web driver. Create a new one if necessary."""
@@ -291,38 +292,60 @@ class Pyalgofetcher:
 
     def process_sc_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from StockCharts """
+
+        # Get API args
         api_args = self.config_data['feeds'][feed]['api_args']
         logging.debug("API args: %s", str(api_args))
-        url = 'https://stockcharts.com'
-        creds = self.config_data['credentials']['feed_api'][feed_api]
-        username = creds['username']
-        password = creds['password']
+
         # Make the symbol uppercase since it will be used in the URL to pull data
         symbol = str(api_args['symbol']).upper()
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
+
+        # See if we can skip logging in
+        skip_login = False
+        if self.our_web_driver is not None:
+            logging.info("The web driver exists already")
+            if self.latest_feed_api == feed_api:
+                logging.info("Re-using the web driver since the feed_api is the same.")
+                skip_login = True
+            else:
+                logging.info("Destroying the web driver since the feed_api is not the same.")
+                self.cleanup_our_web_driver()
+
+        # Get a new driver or re-use the old one
         driver = self.get_our_web_driver()
-        # Open main page
+
         #driver.maximize_window()
-        driver.get(url)
-        logging.debug("Opened URL: %s", driver.current_url)
-        driver.implicitly_wait(1)
-        logging.debug("URL is currently: %s", driver.current_url)
-        # Click on Login
-        element = self.get_via_xpath(driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
-        element.click()
-        # Enter username
-        element = self.get_via_xpath(driver, '//*[@id="form_UserID"]')
-        element.send_keys(username)
-        # Enter password
-        element = self.get_via_xpath(driver, '//*[@id="form_UserPassword"]')
-        element.send_keys(password)
-        # Click on the second "log in" button
-        element = self.get_via_xpath(driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
-        element.click()
-        logging.info("Should be logged in now")
-        # Go directly to the historical data for a symbol
-        url='https://stockcharts.com/h-hd/?' + symbol
-        driver.get(url)
+
+        if skip_login is False:
+            creds = self.config_data['credentials']['feed_api'][feed_api]
+            username = creds['username']
+            password = creds['password']
+            login_url = 'https://stockcharts.com'
+            driver.get(login_url)
+            logging.debug("Opened URL: %s", driver.current_url)
+            driver.implicitly_wait(1)
+            logging.debug("URL is currently: %s", driver.current_url)
+            # Click on Login
+            element = self.get_via_xpath(driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
+            element.click()
+            # Enter username
+            element = self.get_via_xpath(driver, '//*[@id="form_UserID"]')
+            element.send_keys(username)
+            # Enter password
+            element = self.get_via_xpath(driver, '//*[@id="form_UserPassword"]')
+            element.send_keys(password)
+            # Click on the second "log in" button
+            element = self.get_via_xpath(driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
+            element.click()
+            # Remember that we are logged in
+            logging.info("Should be logged in now")
+            self.latest_feed_api = feed_api
+
+
+        # Go to the historical data for a symbol
+        data_url='https://stockcharts.com/h-hd/?' + symbol
+        driver.get(data_url)
         # Click to download data set (to "browser.download.dir")
         element = self.get_via_xpath(driver, '//*[@id="download"]')
         element.click()
