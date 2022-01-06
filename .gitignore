@@ -7,3 +7,6 @@ overrides.yaml
 .effective-config.yaml
 
 *.log
+
+# Download files here
+tmp

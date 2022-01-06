@@ -15,14 +15,15 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-import re
-from tqdm import tqdm
 
 
 class Pyalgofetcher:
     """ This class does all the work."""
     def __init__(self, cfg):
         """ Construct the fetcher object """
+        # Allow re-use of this driver
+        self.our_web_driver = None
+
         # Read the config file.
         self.process_config_data(cfg)
 
@@ -196,7 +197,7 @@ class Pyalgofetcher:
                                                 'Adj Close': 'adj_close'
                                                 })
                                                 """
-        logging.debug("PDR Columns: " + str(data_frame.columns))
+        logging.debug("PDR Columns: %s", data_frame.columns)
         # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -248,6 +249,46 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
 
+    def cleanup_our_web_driver(self):
+        """ Cleanup the web driver if it exists """
+        logging.info("Cleaning up web driver")
+        if self.our_web_driver is not None:
+            self.our_web_driver.quit()
+
+    def get_our_web_driver(self):
+        """ Reuse the Selenium web driver. Create a new one if necessary."""
+        """ Call cleanup_our_web_driver to ensure you have a new one """
+        if self.our_web_driver is not None:
+            return self.our_web_driver
+        else:
+            # Assume Firefox and the Gecko Driver are installed
+            # Create a profile that will allow fetching CSV files
+            # without creating a pop-up dialog
+            ff_profile = webdriver.FirefoxProfile()
+            ff_profile.set_preference("browser.download.folderList",2)
+            ff_profile.set_preference("browser.download.dir", self.temp_dir)
+            ff_profile.set_preference("browser.download.manager.showWhenStarting", False)
+            ff_profile.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
+            ff_profile.set_preference("browser.download.manager.alertOnEXEOpen", False)
+            ff_profile.set_preference("browser.helperApps.neverAsk.saveToDisk", \
+                                      "application/msword, application/csv, application/ris, text/csv, \
+                                      image/png, application/pdf, text/html, text/plain, application/zip, \
+                                      application/x-zip, application/x-zip-compressed, application/download, \
+                                      application/octet-stream")
+            ff_profile.set_preference("browser.download.manager.showWhenStarting", False)
+            ff_profile.set_preference("browser.download.manager.focusWhenStarting", False)
+            ff_profile.set_preference("browser.download.useDownloadDir", True)
+            ff_profile.set_preference("browser.helperApps.alwaysAsk.force", False)
+            ff_profile.set_preference("browser.download.manager.alertOnEXEOpen", False)
+            ff_profile.set_preference("browser.download.manager.closeWhenDone", True)
+            ff_profile.set_preference("browser.download.manager.showAlertOnComplete", False)
+            ff_profile.set_preference("browser.download.manager.useWindow", False)
+            ff_profile.set_preference("services.sync.prefs.sync.browser.download.manager.showWhenStarting", False)
+            ff_profile.set_preference("pdfjs.disabled", True)
+            driver = webdriver.Firefox(firefox_profile=ff_profile)
+            self.our_web_driver = driver
+            return driver
+
     def process_sc_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from StockCharts """
         api_args = self.config_data['feeds'][feed]['api_args']
@@ -259,31 +300,7 @@ class Pyalgofetcher:
         # Make the symbol uppercase since it will be used in the URL to pull data
         symbol = str(api_args['symbol']).upper()
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
-        # Assume Firefox and the Gecko Driver are installed
-        # Create a profile
-        # - allow fetching CSV files without creating a pop-up dialog
-        fp = webdriver.FirefoxProfile()
-        fp.set_preference("browser.download.folderList",2)
-        fp.set_preference("browser.download.dir", self.temp_dir)
-        fp.set_preference("browser.download.manager.showWhenStarting", False)
-        fp.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
-        fp.set_preference("browser.download.manager.alertOnEXEOpen", False)
-        fp.set_preference("browser.helperApps.neverAsk.saveToDisk", \
-                          "application/msword, application/csv, application/ris, text/csv, \
-                          image/png, application/pdf, text/html, text/plain, application/zip, \
-                          application/x-zip, application/x-zip-compressed, application/download, \
-                          application/octet-stream")
-        fp.set_preference("browser.download.manager.showWhenStarting", False)
-        fp.set_preference("browser.download.manager.focusWhenStarting", False)
-        fp.set_preference("browser.download.useDownloadDir", True)
-        fp.set_preference("browser.helperApps.alwaysAsk.force", False)
-        fp.set_preference("browser.download.manager.alertOnEXEOpen", False)
-        fp.set_preference("browser.download.manager.closeWhenDone", True)
-        fp.set_preference("browser.download.manager.showAlertOnComplete", False)
-        fp.set_preference("browser.download.manager.useWindow", False)
-        fp.set_preference("services.sync.prefs.sync.browser.download.manager.showWhenStarting", False)
-        fp.set_preference("pdfjs.disabled", True)
-        driver = webdriver.Firefox(firefox_profile=fp)
+        driver = self.get_our_web_driver()
         # Open main page
         #driver.maximize_window()
         driver.get(url)
@@ -320,6 +337,11 @@ class Pyalgofetcher:
         data_frame = pd.read_csv(abs_filename, skiprows=1, \
                                  parse_dates=['      Date'], \
                                  date_parser=stockcharts_date_parser)
+        # Remove the downloaded file
+        if(os.path.isfile( abs_filename )):
+            os.remove( abs_filename )
+        else:
+            logging.warning("Somehow there is no file to delete at: %s", abs_filename)
         # Remove all spaces from the column names
         data_frame.columns = data_frame.columns.str.replace(' ', '')
         # Make the column names sane for relational datases
@@ -335,7 +357,6 @@ class Pyalgofetcher:
         for col in data_frame.columns:
             if pd.api.types.is_string_dtype(data_frame[col]):
                 data_frame[col] = data_frame[col].str.strip()
-        logging.debug("Got a file with %s rows", data_frame.size)
         # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -373,7 +394,7 @@ class Pyalgofetcher:
         # Assume Firefox with Gecko Driver
         #options = webdriver.FirefoxOptions()
         #options.add_argument("--profile <some_path>")
-        driver = webdriver.Firefox()
+        driver = self.get_our_web_driver()
         #driver.maximize_window()
         driver.get(url)
         logging.debug("Opened URL: %s", driver.current_url)
@@ -399,9 +420,6 @@ class Pyalgofetcher:
         # Click on website feeds
         element = self.get_via_xpath(driver, '/html/body/nav/div/div[2]/ul/li[4]/a')
         element.click()
-        # Cleanup and Quit
-        driver.close() # close the current window
-        driver.quit() # close all windows and exit
 
     def create_feed_api_dir(self, feed, feed_api):
         """ Ensure the directory to hold the data for this feed exists. Return its path """
@@ -458,7 +476,8 @@ class Pyalgofetcher:
             else:
                 logging.debug("Skipping feed with name: %s", feed)
         logging.info("Successfully finished processing")
-
+        self.cleanup_our_web_driver()
+        logging.info("Successfully terminating program")
 
 def merge(dict_a, dict_b, path=None, update=True):
     """ Merge 'b' into 'a'
