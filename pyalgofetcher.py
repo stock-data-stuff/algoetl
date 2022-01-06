@@ -71,6 +71,9 @@ class Pyalgofetcher:
                 self.config_data['output_config']['file']['format_args']['compression']
         logging.info("Compression is: %s", self.compression)
 
+        # Temp space
+        self.temp_dir = os.path.normpath(os.path.join(os.getcwd(), "tmp"))
+
     def process_config_data(self, cfg):
         """ Read the config file, and the override file if it exists,
         and store the merged result in self.config_data.
@@ -131,15 +134,19 @@ class Pyalgofetcher:
         if self.output_format == "csv":
             csv_header = self.config_data['output_config']['file']['format_args']['header']
             if str(csv_header).lower() == 'false':
-                data_frame.to_csv(abs_filename, header=None, index=False)
+                data_frame.to_csv(abs_filename, header=None, index=False, \
+                                  date_format = '%Y-%m-%d')
             else:
-                data_frame.to_csv(abs_filename, index=False)
+                data_frame.to_csv(abs_filename, index=False, \
+                                  date_format = '%Y-%m-%d')
         elif self.output_format == "json":
             orient = self.config_data['output_config']['file']['format_args']['orient']
             if str(orient).lower() == 'table':
-                data_frame.to_json(abs_filename, orient="table")
+                data_frame.to_json(abs_filename, orient="table", \
+                                   date_format = 'iso', date_unit='s')
             if str(orient).lower() == 'records':
-                data_frame.to_json(abs_filename, orient="records", lines=True)
+                data_frame.to_json(abs_filename, orient="records", lines=True, \
+                                   date_format = 'iso', date_unit='s')
             else:
                 logging.critical("Unsupported value of orient: %s", orient)
                 sys.exit(1)
@@ -178,7 +185,19 @@ class Pyalgofetcher:
             logging.critical("No data found for feed: %s for range: %s to %s",
                              feed, self.start_date, self.end_date)
             sys.exit(1)
-        # Write the file
+        # Make the column names appropriate for a relational database
+        """
+        data_frame = data_frame.rename(columns={'T': 'date',
+                                                'High': 'high',
+                                                'Low': 'low',
+                                                'Open': 'open',
+                                                'Close': 'close',
+                                                'Volume': 'volume',
+                                                'Adj Close': 'adj_close'
+                                                })
+                                                """
+        logging.debug("PDR Columns: " + str(data_frame.columns))
+        # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
@@ -197,40 +216,147 @@ class Pyalgofetcher:
         url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
         url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
         # Fetch the data into a dataframe
-        data_frame = pd.read_csv(url)
-        # Write the file
+        #data_frame = pd.read_csv(url)
+        # Make the date fields actual Date types
+        fed_date_parser = lambda s: datetime.datetime.strptime(s,'%Y-%m-%d')
+        data_frame = pd.read_csv(url, \
+                                 parse_dates=['As Of Date','Maturity Date'], \
+                                 date_parser=fed_date_parser)
+        # Make the column names sane for relational datases
+        data_frame.rename(columns = {'As Of Date':'as_of_date',
+                                     'CUSIP':'cusip',
+                                     'Security Type':'security_type',
+                                     'Security Description':'security_description',
+                                     'Term':'term',
+                                     'Maturity Date':'maturity_date',
+                                     'Issuer':'issuer',
+                                     'Spread (%)':'spread_pct',
+                                     'Coupon (%)':'coupon_pct',
+                                     'Current Face Value':'current_face_value',
+                                     'Par Value':'par_value',
+                                     'Inflation Compensation':'inflation_compensation',
+                                     'Percent Outstanding':'percent_outstanding',
+                                     'Change From Prior Week':'change_from_prior_week',
+                                     'Change From Prior Year':'change_from_prior_year',
+                                     'is Aggregated':'is_aggregated'
+                                     }, inplace = True)
+        # Remove apostrophes from data in a column
+        col = 'cusip'
+        data_frame[col] = data_frame[col].map(lambda x: str(x).replace("'",""))
+        # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
 
     def process_sc_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from StockCharts """
+        api_args = self.config_data['feeds'][feed]['api_args']
+        logging.debug("API args: %s", str(api_args))
+        url = 'https://stockcharts.com'
+        creds = self.config_data['credentials']['feed_api'][feed_api]
+        username = creds['username']
+        password = creds['password']
+        # Make the symbol uppercase since it will be used in the URL to pull data
+        symbol = str(api_args['symbol']).upper()
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
-        logging.critical("SC NOT IMPLEMENTED YET")
-        sys.exit(1)
-        args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(args))
-        #username = args['username']
-        #password = args['password']
-        # Construct the query URL
-        #TODO: stockcharts
-        url = ''
-        #url = 'https://markets.newyorkfed.org/read?productCode=' + product_code
-        #url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
-        #url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
-        # Fetch the data into a dataframe
-        data_frame = pd.read_csv(url)
-        # Write the file
+        # Assume Firefox and the Gecko Driver are installed
+        # Create a profile
+        # - allow fetching CSV files without creating a pop-up dialog
+        fp = webdriver.FirefoxProfile()
+        fp.set_preference("browser.download.folderList",2)
+        fp.set_preference("browser.download.dir", self.temp_dir)
+        fp.set_preference("browser.download.manager.showWhenStarting", False)
+        fp.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
+        fp.set_preference("browser.download.manager.alertOnEXEOpen", False)
+        fp.set_preference("browser.helperApps.neverAsk.saveToDisk", \
+                          "application/msword, application/csv, application/ris, text/csv, \
+                          image/png, application/pdf, text/html, text/plain, application/zip, \
+                          application/x-zip, application/x-zip-compressed, application/download, \
+                          application/octet-stream")
+        fp.set_preference("browser.download.manager.showWhenStarting", False)
+        fp.set_preference("browser.download.manager.focusWhenStarting", False)
+        fp.set_preference("browser.download.useDownloadDir", True)
+        fp.set_preference("browser.helperApps.alwaysAsk.force", False)
+        fp.set_preference("browser.download.manager.alertOnEXEOpen", False)
+        fp.set_preference("browser.download.manager.closeWhenDone", True)
+        fp.set_preference("browser.download.manager.showAlertOnComplete", False)
+        fp.set_preference("browser.download.manager.useWindow", False)
+        fp.set_preference("services.sync.prefs.sync.browser.download.manager.showWhenStarting", False)
+        fp.set_preference("pdfjs.disabled", True)
+        driver = webdriver.Firefox(firefox_profile=fp)
+        # Open main page
+        #driver.maximize_window()
+        driver.get(url)
+        logging.debug("Opened URL: %s", driver.current_url)
+        driver.implicitly_wait(1)
+        logging.debug("URL is currently: %s", driver.current_url)
+        # Click on Login
+        element = self.get_via_xpath(driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
+        element.click()
+        # Enter username
+        element = self.get_via_xpath(driver, '//*[@id="form_UserID"]')
+        element.send_keys(username)
+        # Enter password
+        element = self.get_via_xpath(driver, '//*[@id="form_UserPassword"]')
+        element.send_keys(password)
+        # Click on the second "log in" button
+        element = self.get_via_xpath(driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
+        element.click()
+        logging.info("Should be logged in now")
+        # Go directly to the historical data for a symbol
+        url='https://stockcharts.com/h-hd/?' + symbol
+        driver.get(url)
+        # Click to download data set (to "browser.download.dir")
+        element = self.get_via_xpath(driver, '//*[@id="download"]')
+        element.click()
+        # Read the data (stored by the browser)
+        rel_filename = symbol + '.csv'
+        abs_filename = os.path.normpath(os.path.join(self.temp_dir, rel_filename))
+        # Read the CSV file and skip the metadata line before the header
+        # Make the date fields actual Date types
+        stockcharts_date_parser = lambda s: datetime.datetime.strptime(s,'%m/%d/%Y')
+        # The column names have leading spaces, just skip that silly header row
+        colnames=['date', 'open', 'high', 'low', 'close']
+        data_frame = pd.read_csv(abs_filename, skiprows=1, \
+                                 parse_dates=['      Date'], \
+                                 date_parser=stockcharts_date_parser)
+        # Remove all spaces from the column names
+        data_frame.columns = data_frame.columns.str.replace(' ', '')
+        # Make the column names sane for relational datases
+        # TODO: why is it necessary to re-assign the data_frame here?
+        data_frame = data_frame.rename(columns = {'Date':'date',
+                                                  'Open':'open',
+                                                  'High':'high',
+                                                  'Low':'low',
+                                                  'Close':'close',
+                                                  'Volume':'volume'
+                                                  })
+        # Strip *leading and trailing* spaces from the data
+        for col in data_frame.columns:
+            if pd.api.types.is_string_dtype(data_frame[col]):
+                data_frame[col] = data_frame[col].str.strip()
+        logging.debug("Got a file with %s rows", data_frame.size)
+        # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
 
-    def get_via_xpath(self, driver, element_xpath):
+    def get_via_xpath(self, driver, element_xpath, timeout=5, poll_frequency=0.5):
         """ This is just a convenience wrapper to call the Selenium code"""
         try:
-            element = WebDriverWait(driver, 20, 0.5).until(EC.element_to_be_clickable((By.XPATH, element_xpath)))
+            element = WebDriverWait(driver, timeout, poll_frequency).until(EC.element_to_be_clickable((By.XPATH, element_xpath)))
         except selenium.common.exceptions.NoSuchElementException as nse_exception:
             logging.error("Error searching for element with xpath: %s", element_xpath)
+            logging.error("Got exception: %s", nse_exception)
+            sys.exit(1)
+        return element
+
+    def get_via_link_text(self, driver, link_text, timeout=5, poll_frequency=0.5):
+        """ This is just a convenience wrapper to call the Selenium code"""
+        try:
+            element = WebDriverWait(driver, timeout, poll_frequency).until(EC.element_to_be_clickable((By.LINK_TEXT, link_text)))
+        except selenium.common.exceptions.NoSuchElementException as nse_exception:
+            logging.error("Error searching for element with link text: %s", link_text)
             logging.error("Got exception: %s", nse_exception)
             sys.exit(1)
         return element
@@ -258,6 +384,7 @@ class Pyalgofetcher:
         element.click()
         # Click on Login
         element = self.get_via_xpath(driver, '/html/body/nav/div/div[2]/ul/li[9]/a')
+        #element = self.get_via_link_text(driver, 'Login') # Fails
         element.click()
         # Enter username
         element = self.get_via_xpath(driver, '//*[@id="Input_Email"]')
