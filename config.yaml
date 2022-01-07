@@ -29,57 +29,66 @@ output_config:
 feeds:
   # StockCharts data is scraped
   # https://support.stockcharts.com/doku.php?id=faqs:can_i_export_your_data_into_another_program_like_excel_or_metastock
+  # It seems ok to just mimic what a person could do.
+  # But, slow the program down to about human 'web-traversal' speed.
+  # We don't want to be a burden on the site.
   VIX_from_sc:         # feeds[KEY] is used to name the directory and file with the data
     api: sc
     api_args:
       symbol: '$VIX'
       #symbol: 'VIX'    # 'symbol' is used to construct the URL to fetch the data
-  IBM:
-    api: sc
-    api_args:
-      symbol: IBM
-  # Whysper API: for testing.
-  # Uncomment this out to interrupt re-use of the web driver (since this has a different api)
+  # These work
+  #IBM:
+  #  api: sc
+  #  api_args:
+  #    symbol: IBM
+  #AAPL:
+  #  api: sc
+  #  api_args:
+  #    symbol: AAPL
+
+
+  # Whysper API: This works. Just use it for testing.
+  # Put this in between "sc" type feeds to force re-logging in
   #WHYSPER_1:
   #  api: whysper
   #  api_args:
   #    url: "https://whysper.io"
-  AAPL:
-    api: sc
-    api_args:
-      symbol: AAPL
 
+
+  # WTF ... As of 2022-01-07, this feed is not working properly
   # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
-  FED_Soma:
-    api: fed
-    api_args:
-      symbol: "FED_Soma"
-      productCode: "30"
-      query: "details"
-      holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
-      format: "csv"
-    api_constraints:
-    # Somehow deal with the fact that this API is fragile.
-    # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
-    # FAIL
-    #  ./pyalgofetcher.py -f FED_Soma -s 1990-11-01 -e 1990-12-31 -d /tmp
-    # SUCCEED
-    # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
+  #FED_Soma:
+  #  api: fed
+  #  api_args:
+  #    symbol: "FED_Soma"
+  #    productCode: "30"
+  #    query: "details"
+  #    holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
+  #    format: "csv"
+  #
+  #  # TODO: Somehow deal with the fact that this API is fragile.
+  #  # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
+  #  # FAIL
+  #  #  ./pyalgofetcher.py -f FED_Soma -s 1990-11-01 -e 1990-12-31 -d /tmp
+  #  # SUCCEED
+  #  # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
 
+
+  # WTF ... as of 2022-01-05, this is not returning dates
   # API docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   #
-  # WTF... as of 2022-01-05, this is not returning dates
   #
-#  VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
-#    api: pdr
-#    api_args:
-#      symbol: "VIX"
-#      source: "yahoo"
-#  SPY:
-#    api: pdr
-#    api_args:
-#      symbol: "SPY"
-#      source: "yahoo"
+  #VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
+  #  api: pdr
+  #  api_args:
+  #    symbol: "VIX"
+  #    source: "yahoo"
+  #SPY:
+  #  api: pdr
+  #  api_args:
+  #    symbol: "SPY"
+  #    source: "yahoo"
 
 
 # Do not put private information in this file!

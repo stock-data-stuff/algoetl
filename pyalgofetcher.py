@@ -89,10 +89,10 @@ class Pyalgofetcher:
         should_remove_existing_files = True # For dev/testing, re-use files in the temp dir
         if os.path.exists( self.temp_dir ):
             logging.info("Temp dir exists: %s", self.temp_dir)
-            if should_remove_existing_files == True:
+            if should_remove_existing_files is True:
                 for file in os.scandir(self.temp_dir):
                     if os.path.isfile(file.path):
-                            os.remove(file.path)
+                        os.remove(file.path)
                 size = len(os.listdir(self.temp_dir))
                 if size > 0:
                     logging.error("There should not be any files in temp dir %s",
@@ -212,7 +212,7 @@ class Pyalgofetcher:
                              feed, self.start_date, self.end_date)
             sys.exit(1)
         # Make the column names appropriate for a relational database
-        """ TODO: continue working on the pandas data reader
+        todo = """ TODO: continue working on the pandas data reader
         data_frame = data_frame.rename(columns={'T': 'date',
                                                 'High': 'high',
                                                 'Low': 'low',
@@ -241,13 +241,27 @@ class Pyalgofetcher:
         url = 'https://markets.newyorkfed.org/read?productCode=' + product_code
         url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
         url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
+
         # Fetch the data into a dataframe
-        #data_frame = pd.read_csv(url)
-        # Make the date fields actual Date types
-        fed_date_parser = lambda s: datetime.datetime.strptime(s,'%Y-%m-%d')
-        data_frame = pd.read_csv(url, \
-                                 parse_dates=['As Of Date','Maturity Date'], \
-                                 date_parser=fed_date_parser)
+
+        just_see_if_we_can_use_the_url = True
+        if just_see_if_we_can_use_the_url is True:
+            logging.info("Just try to get the data as-is from the FED at: %s", url)
+            try:
+                data_frame1 = pd.read_csv(url)
+            except pd.errors.ParserError as parse_error:
+                logging.error('Can not read the Fed data at all. This is not due to any work done during download.')
+                sys.exit(1)
+        else:
+            # Download the data while making the date fields actual Date types
+            logging.info("Get data from the FED, while fixing date fields, at: %s", url)
+            fed_date_parser = lambda s: datetime.datetime.strptime(s,'%Y-%m-%d')
+            try:
+                data_frame = pd.read_csv(url, parse_dates=['As Of Date','Maturity Date'], date_parser=fed_date_parser)
+            except pd.errors.ParserError as parse_error:
+                logging.error('Can not read the Fed data at all')
+                sys.exit(1)
+
         # Make the column names sane for relational datases
         data_frame.rename(columns = {'As Of Date':'as_of_date',
                                      'CUSIP':'cusip',
@@ -268,7 +282,7 @@ class Pyalgofetcher:
                                      }, inplace = True)
         # Remove apostrophes from data in a column
         col = 'cusip'
-        data_frame[col] = data_frame[col].map(lambda x: str(x).replace("'",""))
+        data_frame[col] = data_frame[col].map(lambda x: str(x).replace("'","")) # TODO: pylint suggests this is bad
         # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -282,8 +296,8 @@ class Pyalgofetcher:
             self.our_web_driver = None
 
     def get_our_web_driver(self):
-        """ Reuse the Selenium web driver. Create a new one if necessary."""
-        """ Call cleanup_our_web_driver to ensure you have a new one """
+        """ Reuse the Selenium web driver. Create a new one if necessary.
+        Call cleanup_our_web_driver to ensure you have a new one """
         if self.our_web_driver is not None:
             return self.our_web_driver
         else:
@@ -329,7 +343,7 @@ class Pyalgofetcher:
                                  parse_dates=['      Date'],
                                  date_parser=stockcharts_date_parser)
         # Remove the downloaded file from the temp dir
-        if(os.path.isfile( abs_filename )):
+        if os.path.isfile( abs_filename ):
             os.remove( abs_filename )
         else:
             logging.warning("Somehow there is no file to delete at: %s", abs_filename)
@@ -338,7 +352,7 @@ class Pyalgofetcher:
         # Strip *leading and trailing* spaces from the data
         for col in data_frame.columns:
             if pd.api.types.is_string_dtype(data_frame[col]):
-                data_frame[col] = data_frame[col].str.strip()
+                data_frame[col] = data_frame[col].str.strip()  #pylint suggests this is bad
         # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -430,9 +444,8 @@ class Pyalgofetcher:
         # Enter the symbol in the form
         element = self.get_element(By.ID, driver, 'nav-chartSearch-input')
         element.send_keys(symbol)
-
         # Hit enter to make it show the chart data in the web page
-        element.send_keys(Keys.ENTER);
+        element.send_keys(Keys.ENTER)
         #
         # If enter stops working, click on the "Go" Button
         #element = self.get_via_id(driver, 'nav-chartSearch-submit')
