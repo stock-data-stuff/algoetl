@@ -83,7 +83,19 @@ class Pyalgofetcher:
         logging.info("Compression is: %s", self.compression)
 
         # Temp space
+        # When files are automatically downloaded, they land here.
         self.temp_dir = os.path.normpath(os.path.join(os.getcwd(), "tmp"))
+        # Clean up the temp space (since conflicting files will just get a new name)
+        for file in os.scandir(self.temp_dir):
+            if os.path.isfile(file.path):
+                if 'README.md' in file.path:
+                    logging.info("Not erasing %s", file.path)
+                else:
+                    os.remove(file.path)
+        size = len(os.listdir(self.temp_dir)) -1
+        if size > 1:
+            logging.error("There should only be one file in the temp dir %s but there are %d",
+                          self.temp_dir, size)
 
     def process_config_data(self, cfg):
         """ Read the config file, and the override file if it exists,
