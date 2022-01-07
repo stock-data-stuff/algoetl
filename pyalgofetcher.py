@@ -386,7 +386,7 @@ class Pyalgofetcher:
             driver.implicitly_wait(1)
             logging.debug("URL is currently: %s", driver.current_url)
             # Click on Login
-            element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
+            #element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
             element = self.get_element(By.LINK_TEXT, driver, 'Log In')
             element.click()
             # Enter username
@@ -397,9 +397,17 @@ class Pyalgofetcher:
             # Enter password
             element = self.get_element(By.ID, driver, 'form_UserPassword')
             element.send_keys(password)
+
             # Click on the second "log in" button
-            element = self.get_element(By.XPATH, driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
+            # Works
+            # element = self.get_element(By.XPATH, driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
+            element = self.get_element(By.CSS_SELECTOR, driver, 'button.btn')
+            # Fails
+            # element = self.get_element(By.LINK_TEXT, driver, 'Log In')
+            # Untested
+            # CSS_PATH=html body#page-top div#pagebody div#pagecontents section#login-section div.container-fluid div.row div.col-lg-12.col-md-12.col-sm-12.col-xs-12 div.login-panel.panel.panel-default div.panel-body form#loginform fieldset button.btn.btn-lg.btn-success.btn-block.login-panel-button
             element.click()
+
             # Remember that we are logged in
             logging.info("Should be logged in now")
             self.latest_selenium_login = feed_api
