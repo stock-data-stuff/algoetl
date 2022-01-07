@@ -29,15 +29,15 @@ output_config:
 feeds:
   # StockCharts data is scraped
   # https://support.stockcharts.com/doku.php?id=faqs:can_i_export_your_data_into_another_program_like_excel_or_metastock
-  VIX_from_sc:
+  VIX_from_sc:         # feeds[KEY] is used to name the directory and file with the data
     api: sc
     api_args:
-      #symbol: '$VIX'
-      symbol: 'VIX'
-  IBM:   # used to name the directory and file with the data
+      symbol: '$VIX'
+      #symbol: 'VIX'    # 'symbol' is used to construct the URL to fetch the data
+  IBM:
     api: sc
     api_args:
-      symbol: IBM   # used to construct the URL to fetch the data
+      symbol: IBM
   # Whysper API: for testing.
   # Uncomment this out to interrupt re-use of the web driver (since this has a different api)
   #WHYSPER_1:

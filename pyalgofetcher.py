@@ -26,13 +26,12 @@ class Pyalgofetcher:
 
         # For web-scraping, re-use the Selenium web-driver when possible
         self.our_web_driver = None # Remember the driver
-        # This is used to remember when we change web sites and need to log in again
-        # We could use the "current_url" of the driver, but this is more robust.
-        # Currently, each "feed_api" is a different web-site, or does not use
-        # the Selenium driver at all.
-        # If that changes, then use a different piece of information here to decide
-        # when we can re-use the web driver.
-        self.latest_selenium_feed_api = None
+        # This is used to remember when we need to log in again.
+        # For now, we can assume each "feed api" has only one login.
+        # If that changes, then we'll need to add a "credentials" parameter to
+        # each feed and use that to refer to the "credentials" secion in the
+        # config data (in overrides.yaml)
+        self.latest_selenium_login = None
 
         # Read the config file.
         self.process_config_data(cfg)
@@ -86,15 +85,17 @@ class Pyalgofetcher:
         # When files are automatically downloaded, they land here.
         self.temp_dir = os.path.normpath(os.path.join(os.getcwd(), "tmp"))
         # Create the temp dir if it does not exist. Clean it up otherwise.
+        should_remove_existing_files = True # For dev/testing, re-use files in the temp dir
         if os.path.exists( self.temp_dir ):
             logging.info("Temp dir exists: %s", self.temp_dir)
-            for file in os.scandir(self.temp_dir):
-                if os.path.isfile(file.path):
-                        os.remove(file.path)
-            size = len(os.listdir(self.temp_dir))
-            if size > 0:
-                logging.error("There should not be any files in temp dir %s",
-                              self.temp_dir)
+            if should_remove_existing_files == True:
+                for file in os.scandir(self.temp_dir):
+                    if os.path.isfile(file.path):
+                            os.remove(file.path)
+                size = len(os.listdir(self.temp_dir))
+                if size > 0:
+                    logging.error("There should not be any files in temp dir %s",
+                                  self.temp_dir)
         else:
             os.mkdir( self.temp_dir )
 
@@ -210,7 +211,7 @@ class Pyalgofetcher:
                              feed, self.start_date, self.end_date)
             sys.exit(1)
         # Make the column names appropriate for a relational database
-        """
+        """ TODO: continue working on the pandas data reader
         data_frame = data_frame.rename(columns={'T': 'date',
                                                 'High': 'high',
                                                 'Low': 'low',
@@ -313,8 +314,42 @@ class Pyalgofetcher:
             self.our_web_driver = driver
             return driver
 
-    def process_sc_feed(self, feed, feed_dir, feed_api):
+    def handle_stockchart_temp_file(self, feed, feed_dir, feed_api, symbol_returned):
+        """ Read the file from the temp dir downloaded from StockCharts.com
+        This is split into a separate function to facilitate dev/testing """
+        # Read the data (stored by the browser)
+        rel_filename = symbol_returned + '.csv'
+        abs_filename = os.path.normpath(os.path.join(self.temp_dir, rel_filename))
+        # Read the CSV file and skip the metadata line before the header
+        # Make the date fields actual Date types
+        stockcharts_date_parser = lambda s: datetime.datetime.strptime(s,'%m/%d/%Y')
+        # The column names have leading spaces, just skip that silly header row
+        data_frame = pd.read_csv(abs_filename,
+                                 skiprows=1,
+                                 parse_dates=['      Date'],
+                                 date_parser=stockcharts_date_parser)
+        # Fix the column names in the data frame
+        data_frame.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+        # Strip *leading and trailing* spaces from the data
+        for col in data_frame.columns:
+            if pd.api.types.is_string_dtype(data_frame[col]):
+                data_frame[col] = data_frame[col].str.strip()
+        # Write the data frame
+        rel_filename = self.make_rel_filename(feed_api, feed)
+        abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
+        self.write_df(abs_filename, data_frame)
+        # Remove the downloaded file from the temp dir
+        if(os.path.isfile( abs_filename )):
+            os.remove( abs_filename )
+        else:
+            logging.warning("Somehow there is no file to delete at: %s", abs_filename)
+
+    def process_stockcharts_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from StockCharts """
+
+        # For dev/testing, immediately process the file in the temp dir
+        #symbol_returned = '$VIX'
+        #self.handle_stockchart_temp_file(feed, feed_dir, feed_api, symbol_returned)
 
         # Get API args
         api_args = self.config_data['feeds'][feed]['api_args']
@@ -328,7 +363,7 @@ class Pyalgofetcher:
         skip_login = False
         if self.our_web_driver is not None:
             logging.info("The web driver exists already")
-            if self.latest_selenium_feed_api == feed_api:
+            if self.latest_selenium_login == feed_api:
                 logging.info("Re-using the web driver since the feed_api is the same.")
                 skip_login = True
             else:
@@ -352,6 +387,7 @@ class Pyalgofetcher:
             logging.debug("URL is currently: %s", driver.current_url)
             # Click on Login
             element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
+            element = self.get_element(By.LINK_TEXT, driver, 'Log In')
             element.click()
             # Enter username
             #element = self.get_element(By.XPATH, driver, '//*[@id="form_UserID"]')
@@ -366,7 +402,7 @@ class Pyalgofetcher:
             element.click()
             # Remember that we are logged in
             logging.info("Should be logged in now")
-            self.latest_selenium_feed_api = feed_api
+            self.latest_selenium_login = feed_api
 
         # STRATEGY A:Go directly to the URL with the data for a symbol
         # NOPE... it changed
@@ -410,42 +446,8 @@ class Pyalgofetcher:
         element = self.get_element(By.ID, driver, 'symbol')
         symbol_returned = element.get_attribute('innerHTML')
 
-        # Read the data (stored by the browser)
-        #rel_filename = symbol + '.csv'
-        rel_filename = symbol_returned + '.csv'
-        abs_filename = os.path.normpath(os.path.join(self.temp_dir, rel_filename))
-        # Read the CSV file and skip the metadata line before the header
-        # Make the date fields actual Date types
-        stockcharts_date_parser = lambda s: datetime.datetime.strptime(s,'%m/%d/%Y')
-        # The column names have leading spaces, just skip that silly header row
-        colnames=['date', 'open', 'high', 'low', 'close']
-        data_frame = pd.read_csv(abs_filename, skiprows=1, \
-                                 parse_dates=['      Date'], \
-                                 date_parser=stockcharts_date_parser)
-        # Remove the downloaded file
-        if(os.path.isfile( abs_filename )):
-            os.remove( abs_filename )
-        else:
-            logging.warning("Somehow there is no file to delete at: %s", abs_filename)
-        # Remove all spaces from the column names
-        data_frame.columns = data_frame.columns.str.replace(' ', '')
-        # Make the column names sane for relational datases
-        # TODO: why is it necessary to re-assign the data_frame here?
-        data_frame = data_frame.rename(columns = {'Date':'date',
-                                                  'Open':'open',
-                                                  'High':'high',
-                                                  'Low':'low',
-                                                  'Close':'close',
-                                                  'Volume':'volume'
-                                                  })
-        # Strip *leading and trailing* spaces from the data
-        for col in data_frame.columns:
-            if pd.api.types.is_string_dtype(data_frame[col]):
-                data_frame[col] = data_frame[col].str.strip()
-        # Write the data frame
-        rel_filename = self.make_rel_filename(feed_api, feed)
-        abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
-        self.write_df(abs_filename, data_frame)
+        self.handle_stockchart_temp_file(feed, feed_dir, feed_api, symbol_returned)
+
 
     def get_element(self, locator_type, driver, locator_str, timeout=20, poll_frequency=1.0):
         """ This is just a convenience wrapper to call the Selenium code"""
@@ -480,7 +482,7 @@ class Pyalgofetcher:
         skip_login = False
         if self.our_web_driver is not None:
             logging.info("The web driver exists already")
-            if self.latest_selenium_feed_api == feed_api:
+            if self.latest_selenium_login == feed_api:
                 logging.info("Re-using the web driver since the feed_api is the same.")
                 skip_login = True
             else:
@@ -525,7 +527,7 @@ class Pyalgofetcher:
             element.click()
             # Remember that we are logged in
             logging.info("Should be logged in now")
-            self.latest_selenium_feed_api = feed_api
+            self.latest_selenium_login = feed_api
 
         # Go the mail page again
         driver.get(login_url)
@@ -567,7 +569,7 @@ class Pyalgofetcher:
             self.process_fed_feed(feed, feed_dir, feed_api)
         elif feed_api == 'sc':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
-            self.process_sc_feed(feed, feed_dir, feed_api)
+            self.process_stockcharts_feed(feed, feed_dir, feed_api)
         elif feed_api == 'whysper':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_whysper_feed(feed, feed_dir, feed_api)
