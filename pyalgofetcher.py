@@ -44,7 +44,7 @@ class Pyalgofetcher:
         logging.debug("history_dir = %s", self.history_dir)
 
         # Create the history_dir (if it doesn't exist). Allow it to be a symlink
-        if not os.path.isdir(self.history_dir) and not os.path.islink(self.history_dir):
+        if not os.path.exists(self.history_dir):
             os.mkdir(self.history_dir)
 
         # start and end of processing
