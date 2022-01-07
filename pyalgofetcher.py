@@ -17,7 +17,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 
 class Pyalgofetcher:
     """ This class does all the work."""
@@ -288,29 +289,28 @@ class Pyalgofetcher:
         else:
             # Assume Firefox and the Gecko Driver are installed
             # Create a profile that will allow fetching CSV files
-            # without creating a pop-up dialog
-            ff_profile = webdriver.FirefoxProfile()
-            ff_profile.set_preference("browser.download.folderList",2)
-            ff_profile.set_preference("browser.download.dir", self.temp_dir)
-            ff_profile.set_preference("browser.download.manager.showWhenStarting", False)
-            ff_profile.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
-            ff_profile.set_preference("browser.download.manager.alertOnEXEOpen", False)
-            ff_profile.set_preference("browser.helperApps.neverAsk.saveToDisk", \
+            ff_options = Options()
+            ff_options.set_preference("browser.download.folderList",2)
+            ff_options.set_preference("browser.download.dir", self.temp_dir)
+            ff_options.set_preference("browser.download.manager.showWhenStarting", False)
+            ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
+            ff_options.set_preference("browser.download.manager.alertOnEXEOpen", False)
+            ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk", \
                                       "application/msword, application/csv, application/ris, text/csv, \
                                       image/png, application/pdf, text/html, text/plain, application/zip, \
                                       application/x-zip, application/x-zip-compressed, application/download, \
                                       application/octet-stream")
-            ff_profile.set_preference("browser.download.manager.showWhenStarting", False)
-            ff_profile.set_preference("browser.download.manager.focusWhenStarting", False)
-            ff_profile.set_preference("browser.download.useDownloadDir", True)
-            ff_profile.set_preference("browser.helperApps.alwaysAsk.force", False)
-            ff_profile.set_preference("browser.download.manager.alertOnEXEOpen", False)
-            ff_profile.set_preference("browser.download.manager.closeWhenDone", True)
-            ff_profile.set_preference("browser.download.manager.showAlertOnComplete", False)
-            ff_profile.set_preference("browser.download.manager.useWindow", False)
-            ff_profile.set_preference("services.sync.prefs.sync.browser.download.manager.showWhenStarting", False)
-            ff_profile.set_preference("pdfjs.disabled", True)
-            driver = webdriver.Firefox(firefox_profile=ff_profile)
+            ff_options.set_preference("browser.download.manager.showWhenStarting", False)
+            ff_options.set_preference("browser.download.manager.focusWhenStarting", False)
+            ff_options.set_preference("browser.download.useDownloadDir", True)
+            ff_options.set_preference("browser.helperApps.alwaysAsk.force", False)
+            ff_options.set_preference("browser.download.manager.alertOnEXEOpen", False)
+            ff_options.set_preference("browser.download.manager.closeWhenDone", True)
+            ff_options.set_preference("browser.download.manager.showAlertOnComplete", False)
+            ff_options.set_preference("browser.download.manager.useWindow", False)
+            ff_options.set_preference("services.sync.prefs.sync.browser.download.manager.showWhenStarting", False)
+            ff_options.set_preference("pdfjs.disabled", True)
+            driver = webdriver.Firefox(options=ff_options)
             self.our_web_driver = driver
             return driver
 
