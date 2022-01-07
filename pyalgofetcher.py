@@ -6,6 +6,7 @@ import argparse
 import logging
 import datetime
 from pathlib import Path
+import traceback
 
 import selenium.common.exceptions
 import yaml
@@ -15,14 +16,23 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 
 class Pyalgofetcher:
     """ This class does all the work."""
     def __init__(self, cfg):
         """ Construct the fetcher object """
-        # Allow re-use of this driver
-        self.our_web_driver = None
+
+        # For web-scraping, re-use the Selenium web-driver when possible
+        self.our_web_driver = None # Remember the driver
+        # This is used to remember when we change web sites and need to log in again
+        # We could use the "current_url" of the driver, but this is more robust.
+        # Currently, each "feed_api" is a different web-site, or does not use
+        # the Selenium driver at all.
+        # If that changes, then use a different piece of information here to decide
+        # when we can re-use the web driver.
+        self.latest_selenium_feed_api = None
 
         # Read the config file.
         self.process_config_data(cfg)
@@ -305,7 +315,7 @@ class Pyalgofetcher:
         skip_login = False
         if self.our_web_driver is not None:
             logging.info("The web driver exists already")
-            if self.latest_feed_api == feed_api:
+            if self.latest_selenium_feed_api == feed_api:
                 logging.info("Re-using the web driver since the feed_api is the same.")
                 skip_login = True
             else:
@@ -317,40 +327,79 @@ class Pyalgofetcher:
 
         #driver.maximize_window()
 
+        login_url = 'https://stockcharts.com'
+
         if skip_login is False:
             creds = self.config_data['credentials']['feed_api'][feed_api]
             username = creds['username']
             password = creds['password']
-            login_url = 'https://stockcharts.com'
             driver.get(login_url)
             logging.debug("Opened URL: %s", driver.current_url)
             driver.implicitly_wait(1)
             logging.debug("URL is currently: %s", driver.current_url)
             # Click on Login
-            element = self.get_via_xpath(driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
+            element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
             element.click()
             # Enter username
-            element = self.get_via_xpath(driver, '//*[@id="form_UserID"]')
+            #element = self.get_element(By.XPATH, driver, '//*[@id="form_UserID"]')
+            # Prefer By.ID since it is fastest, and should change the least
+            element = self.get_element(By.ID, driver, 'form_UserID')
             element.send_keys(username)
             # Enter password
-            element = self.get_via_xpath(driver, '//*[@id="form_UserPassword"]')
+            element = self.get_element(By.ID, driver, 'form_UserPassword')
             element.send_keys(password)
             # Click on the second "log in" button
-            element = self.get_via_xpath(driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
+            element = self.get_element(By.XPATH, driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
             element.click()
             # Remember that we are logged in
             logging.info("Should be logged in now")
-            self.latest_feed_api = feed_api
+            self.latest_selenium_feed_api = feed_api
 
+        # STRATEGY A:Go directly to the URL with the data for a symbol
+        # NOPE... it changed
+        # data_url='https://stockcharts.com/h-hd/?' + symbol
+        # As of 2021-01-06, it is here...
+        # https://stockcharts.com/h-sc/ui?s=$VVIX
+        #driver.get(data_url)
 
-        # Go to the historical data for a symbol
-        data_url='https://stockcharts.com/h-hd/?' + symbol
-        driver.get(data_url)
-        # Click to download data set (to "browser.download.dir")
-        element = self.get_via_xpath(driver, '//*[@id="download"]')
+        # STRATEGY B: type in the symbol in the form
+        #
+        # Make sure we are on the page with the "SharpChart" form
+        driver.get(login_url)
+        #
+        # Assume the "SharpChart" is shown by default.xs
+        # Add code here if that changes.
+        #
+        # Enter the symbol in the form
+        element = self.get_element(By.ID, driver, 'nav-chartSearch-input')
+        element.send_keys(symbol)
+
+        # Hit enter to make it show the chart data in the web page
+        element.send_keys(Keys.ENTER);
+        #
+        # If enter stops working, click on the "Go" Button
+        #element = self.get_via_id(driver, 'nav-chartSearch-submit')
+        #element.click()
+
+        # Click on "Past Data"
+        element = self.get_element(By.LINK_TEXT, driver, 'Past Data')
         element.click()
+
+        # Click to download data set (to "browser.download.dir")
+        # <a href="#" id="download" class="download-data">Download Data Set</a>
+        element = self.get_element(By.ID, driver, 'download')
+        element.click()
+
+        # Read the name of the symbol actually used by SC
+        # This symbol is used when the file is named during the download.
+        # The symbol used to get the data can differ (e.g. have a missing leading '$')
+        #<input id="symbolinput" type="text" autocomplete="off" value="$VIX"
+        element = self.get_element(By.ID, driver, 'symbol')
+        symbol_returned = element.get_attribute('innerHTML')
+
         # Read the data (stored by the browser)
-        rel_filename = symbol + '.csv'
+        #rel_filename = symbol + '.csv'
+        rel_filename = symbol_returned + '.csv'
         abs_filename = os.path.normpath(os.path.join(self.temp_dir, rel_filename))
         # Read the CSV file and skip the metadata line before the header
         # Make the date fields actual Date types
@@ -385,63 +434,94 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
 
-    def get_via_xpath(self, driver, element_xpath, timeout=5, poll_frequency=0.5):
+    def get_element(self, locator_type, driver, locator_str, timeout=20, poll_frequency=1.0):
         """ This is just a convenience wrapper to call the Selenium code"""
+        # locator_type: e.g. By.XPATH, or By.ID
+        # locator_str: '<ID_OR_XPATH_TO_ELEMENT_ETC>'
         try:
-            element = WebDriverWait(driver, timeout, poll_frequency).until(EC.element_to_be_clickable((By.XPATH, element_xpath)))
+            element = WebDriverWait(driver, timeout, poll_frequency).until(EC.element_to_be_clickable((locator_type, locator_str)))
         except selenium.common.exceptions.NoSuchElementException as nse_exception:
-            logging.error("Error searching for element with xpath: %s", element_xpath)
+            logging.error("Error searching for element with xpath: %s", locator_str)
             logging.error("Got exception: %s", nse_exception)
+            traceback.print_exc()
             sys.exit(1)
-        return element
+        except selenium.common.exceptions.TimeoutException as to_exception:
+            logging.error("Error waiting for element with xpath: %s", locator_str)
+            logging.error("Got exception: %s", to_exception)
+            traceback.print_exc()
+            sys.exit(1)
 
-    def get_via_link_text(self, driver, link_text, timeout=5, poll_frequency=0.5):
-        """ This is just a convenience wrapper to call the Selenium code"""
-        try:
-            element = WebDriverWait(driver, timeout, poll_frequency).until(EC.element_to_be_clickable((By.LINK_TEXT, link_text)))
-        except selenium.common.exceptions.NoSuchElementException as nse_exception:
-            logging.error("Error searching for element with link text: %s", link_text)
-            logging.error("Got exception: %s", nse_exception)
-            sys.exit(1)
+        # Slow everything down so as to avoid annoying website admins
+        driver.implicitly_wait(0.5)
+
         return element
 
     def process_whysper_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from Whysper.io """
-        logging.info("Loading feed with api: %s feed: %s", feed_api, feed)
+
+        # Get API args
         api_args = self.config_data['feeds'][feed]['api_args']
         logging.debug("API args: %s", str(api_args))
-        url = api_args['url']
-        creds = self.config_data['credentials']['feed_api'][feed_api]
-        username = creds['username']
-        password = creds['password']
-        # Assume Firefox with Gecko Driver
-        #options = webdriver.FirefoxOptions()
-        #options.add_argument("--profile <some_path>")
+
+        # See if we can skip logging in
+        skip_login = False
+        if self.our_web_driver is not None:
+            logging.info("The web driver exists already")
+            if self.latest_selenium_feed_api == feed_api:
+                logging.info("Re-using the web driver since the feed_api is the same.")
+                skip_login = True
+            else:
+                logging.info("Destroying the web driver since the feed_api is not the same.")
+                self.cleanup_our_web_driver()
+
+        # Get a new driver or re-use the old one
         driver = self.get_our_web_driver()
+
         #driver.maximize_window()
-        driver.get(url)
-        logging.debug("Opened URL: %s", driver.current_url)
-        driver.implicitly_wait(1)
-        logging.debug("URL is currently: %s", driver.current_url)
+
+        if skip_login is False:
+            login_url = api_args['url']
+            creds = self.config_data['credentials']['feed_api'][feed_api]
+            username = creds['username']
+            password = creds['password']
+            # Assume Firefox with Gecko Driver
+            #options = webdriver.FirefoxOptions()
+            #options.add_argument("--profile <some_path>")
+            driver = self.get_our_web_driver()
+            #driver.maximize_window()
+            driver.get(login_url)
+            logging.debug("Opened URL: %s", driver.current_url)
+            driver.implicitly_wait(1)
+            logging.debug("URL is currently: %s", driver.current_url)
+            # Click on the sandwich
+            element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/button')
+            element.click()
+            # Click on Login
+            element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[2]/ul/li[9]/a')
+            element.click()
+            # Enter username
+            #element = self.get_element(By.XPATH, driver, '//*[@id="Input_Email"]')
+            element = self.get_element(By.ID, driver, 'Input_Email')
+            element.send_keys(username)
+            # Enter password
+            #element = self.get_element(By.XPATH, driver, '//*[@id="Input_Password"]')
+            element = self.get_element(By.ID, driver, 'Input_Password')
+            element.send_keys(password)
+            # Click on the second "log in" button
+            element = self.get_element(By.XPATH, driver, '/html/body/section/div[2]/div[1]/section/form/div[5]/button')
+            element.click()
+            # Remember that we are logged in
+            logging.info("Should be logged in now")
+            self.latest_selenium_feed_api = feed_api
+
+        # Go the mail page again
+        driver.get(login_url)
+        login_url = api_args['url']
         # Click on the sandwich
-        element = self.get_via_xpath(driver, '/html/body/nav/div/div[1]/button')
+        element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/button')
         element.click()
-        # Click on Login
-        element = self.get_via_xpath(driver, '/html/body/nav/div/div[2]/ul/li[9]/a')
-        #element = self.get_via_link_text(driver, 'Login') # Fails
-        element.click()
-        # Enter username
-        element = self.get_via_xpath(driver, '//*[@id="Input_Email"]')
-        element.send_keys(username)
-        # Enter password
-        element = self.get_via_xpath(driver, '//*[@id="Input_Password"]')
-        element.send_keys(password)
-        # Click on the second "log in" button
-        element = self.get_via_xpath(driver, '/html/body/section/div[2]/div[1]/section/form/div[5]/button')
-        element.click()
-        logging.info("Should be logged in now")
         # Click on website feeds
-        element = self.get_via_xpath(driver, '/html/body/nav/div/div[2]/ul/li[4]/a')
+        element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[2]/ul/li[4]/a')
         element.click()
 
     def create_feed_api_dir(self, feed, feed_api):

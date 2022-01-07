@@ -27,6 +27,28 @@ output_config:
 # Each feed must have an API section
 # It's helpful to group feeds here by API (for human readability)
 feeds:
+  # StockCharts data is scraped
+  # https://support.stockcharts.com/doku.php?id=faqs:can_i_export_your_data_into_another_program_like_excel_or_metastock
+  VIX_from_sc:
+    api: sc
+    api_args:
+      #symbol: '$VIX'
+      symbol: 'VIX'
+  IBM:   # used to name the directory and file with the data
+    api: sc
+    api_args:
+      symbol: IBM   # used to construct the URL to fetch the data
+  # Whysper API: for testing.
+  # Uncomment this out to interrupt re-use of the web driver (since this has a different api)
+  #WHYSPER_1:
+  #  api: whysper
+  #  api_args:
+  #    url: "https://whysper.io"
+  AAPL:
+    api: sc
+    api_args:
+      symbol: AAPL
+
   # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
   FED_Soma:
     api: fed
@@ -37,22 +59,13 @@ feeds:
       holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
       format: "csv"
     api_constraints:
-      # Somehow deal with the fact that this API is fragile.
-      # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
-      # FAIL
-      #  ./pyalgofetcher.py -f FED_Soma -s 1990-11-01 -e 1990-12-31 -d /tmp
-      # SUCCEED
-      # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
-  # StockCharts data is scraped
-  # https://support.stockcharts.com/doku.php?id=faqs:can_i_export_your_data_into_another_program_like_excel_or_metastock
-  IBM: # used to name the directory and file with the data
-    api: sc
-    api_args:
-      symbol: "IBM" # used to construct the URL to fetch the data
-  AAPL: # used to name the directory and file with the data
-    api: sc
-    api_args:
-      symbol: "AAPL" # used to construct the URL to fetch the data
+    # Somehow deal with the fact that this API is fragile.
+    # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
+    # FAIL
+    #  ./pyalgofetcher.py -f FED_Soma -s 1990-11-01 -e 1990-12-31 -d /tmp
+    # SUCCEED
+    # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
+
   # API docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
   #
   # WTF... as of 2022-01-05, this is not returning dates
@@ -67,11 +80,7 @@ feeds:
 #    api_args:
 #      symbol: "SPY"
 #      source: "yahoo"
-  # Whysper: for testing
-  #WHYSPER_1:
-  #  api: whysper
-  #  api_args:
-  #    url: "https://whysper.io"
+
 
 # Do not put private information in this file!
 # Copy this section into a file ./overrides.yaml and set the parameters there.
