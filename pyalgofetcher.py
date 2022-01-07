@@ -328,6 +328,11 @@ class Pyalgofetcher:
                                  skiprows=1,
                                  parse_dates=['      Date'],
                                  date_parser=stockcharts_date_parser)
+        # Remove the downloaded file from the temp dir
+        if(os.path.isfile( abs_filename )):
+            os.remove( abs_filename )
+        else:
+            logging.warning("Somehow there is no file to delete at: %s", abs_filename)
         # Fix the column names in the data frame
         data_frame.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
         # Strip *leading and trailing* spaces from the data
@@ -338,11 +343,6 @@ class Pyalgofetcher:
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
-        # Remove the downloaded file from the temp dir
-        if(os.path.isfile( abs_filename )):
-            os.remove( abs_filename )
-        else:
-            logging.warning("Somehow there is no file to delete at: %s", abs_filename)
 
     def process_stockcharts_feed(self, feed, feed_dir, feed_api):
         """ Process data that is read from StockCharts """
