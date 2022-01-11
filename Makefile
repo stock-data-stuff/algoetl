@@ -1,4 +1,4 @@
-.PHONY=all clean clean-all venv python3 deps test run lint pylint pyflakes
+.PHONY=all clean clean-all venv python3 deps run lint pylint pyflakes
 
 # Force make to run targets sequentially
 .NOTPARALLEL:
@@ -18,17 +18,14 @@ SHELL:=/bin/bash
 VENV_PYTHON=python3
 
 # Some script commands
-INSTALL_VENV=$(shell test -d $(VENV_DIR) || $(VENV_PYTHON) -m venv $(VENV_DIR))
-UPDATE_PIPS=$(shell source $(VENV_DIR)/bin/activate && pip3 -q install -r $(MAKEFILE_PATH)requirements.txt)
 START=$(shell date --date="10 days ago" +"%Y-%m-%d")
 END=$(shell date --date="1 days ago" +"%Y-%m-%d")
-RUN_IMPORT=$(shell source $(VENV_DIR)/bin/activate && python3 pyalgofetcher.py -s $(START) -e $(END))
 
-all: clean test
+all: clean lint run
 
 clean:
 	$(info Removing any fetched files)
-	$(shell rm -f $(MAKEFILE_PATH)*.csv)
+	$(shell rm -f $(MAKEFILE_PATH)/tmp/*.csv)
 
 clean-all: clean
 	$(info Removing venv dir)
@@ -36,22 +33,18 @@ clean-all: clean
 
 venv:
 	$(info Installing/Updating venv using $(VENV_PYTHON))
-	$(INSTALL_VENV)
+	test -d $(VENV_DIR) || $(VENV_PYTHON) -m venv $(VENV_DIR)
 
 python3: venv
 	$(info Installing/Updating Python requirements)
-	$(UPDATE_PIPS)
+	source $(VENV_DIR)/bin/activate && pip3 -q install -r $(MAKEFILE_PATH)requirements.txt
 
 deps: python3
 	$(info Installing dependencies)
 
-test: deps
-	$(info test the script)
-	$(RUN_IMPORT)
-
 run: clean
 	$(info Running the script without any setup...)
-	$(RUN_IMPORT)
+	source $(VENV_DIR)/bin/activate && python3 pyalgofetcher.py -s $(START) -e $(END)
 
 pylint: deps
 	$(info Running pylint. This is generally has false positives)
@@ -61,7 +54,6 @@ pyflakes: deps
 	$(info Running pyflakes. This is faster than pylint)
 	source $(VENV_DIR)/bin/activate && python -m pip install pyflakes && pyflakes ./*.py
 
-# $(shell) munges the output onto one line
 lint: pyflakes pylint
 	$(info Running some static code analysis)
 
