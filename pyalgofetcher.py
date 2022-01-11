@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """ This program fetches some data, as defined by the given config file."""
 
-
 import os
 import sys
 import argparse
@@ -9,34 +8,39 @@ import logging
 import datetime
 from pathlib import Path
 import traceback
-
 import selenium.common.exceptions
 import yaml
 import pandas_datareader as web
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 
+
 class Pyalgofetcher:
     """ This class does all the work."""
+
     def __init__(self, cfg):
         """ Construct the fetcher object """
 
         # For web-scraping, re-use the Selenium web-driver when possible
-        self.our_web_driver = None # Remember the driver
+        self.our_web_driver = None  # Remember the driver
+
         # This is used to remember when we need to log in again.
         # For now, we can assume each "feed api" has only one login.
-        # If that changes, then we'll need to add a "credentials" parameter to
-        # each feed and use that to refer to the "credentials" secion in the
-        # config data (in overrides.yaml)
         self.latest_selenium_login = None
 
         # Read the config file.
-        self.process_config_data(cfg)
+        self.config_file = cfg.config_file
+        self.override_file = cfg.override_file
+        self.merged_file = cfg.merged_file
+        logging.debug("config_file = %s", self.config_file)
+        logging.debug("override_file = %s", str(self.override_file))
+        logging.debug("merged_file = %s", str(self.merged_file))
+        self.config_data = self.process_config_data()
 
         self.feed_name = cfg.feed  # Feed(s) to run
         logging.debug("feed_name = %s", self.feed_name)
@@ -51,6 +55,7 @@ class Pyalgofetcher:
         # start and end of processing
         self.start_date = cfg.start_date
         self.end_date = cfg.end_date
+
         # Allow overriding the output format
         if cfg.output_format is not None:
             if cfg.output_format.lower() == 'json':
@@ -64,6 +69,7 @@ class Pyalgofetcher:
         else:
             self.output_format = self.config_data['output_config']['file']['format']
         logging.info("Output format is: %s", self.output_format)
+
         # Allow overriding the compression
         if cfg.compression is not None:
             if cfg.compression.lower() == 'gz':
@@ -82,35 +88,28 @@ class Pyalgofetcher:
                 self.config_data['output_config']['file']['format_args']['compression']
         logging.info("Compression is: %s", self.compression)
 
-        # Temp space
-        # When files are automatically downloaded, they land here.
+        # Temp space. When files are automatically downloaded, they land here.
         self.temp_dir = os.path.normpath(os.path.join(os.getcwd(), "tmp"))
-        # Create the temp dir if it does not exist. Clean it up otherwise.
-        should_remove_existing_files = True # For dev/testing, re-use files in the temp dir
-        if os.path.exists( self.temp_dir ):
-            logging.info("Temp dir exists: %s", self.temp_dir)
-            if should_remove_existing_files is True:
-                for file in os.scandir(self.temp_dir):
-                    if os.path.isfile(file.path):
-                        os.remove(file.path)
-                size = len(os.listdir(self.temp_dir))
-                if size > 0:
-                    logging.error("There should not be any files in temp dir %s",
-                                  self.temp_dir)
-        else:
-            os.mkdir( self.temp_dir )
 
-    def process_config_data(self, cfg):
+        # Create the temp dir if it does not exist. Clean it up otherwise.
+        if os.path.exists(self.temp_dir):
+            logging.info("Temp dir exists: %s", self.temp_dir)
+            for file in os.scandir(self.temp_dir):
+                if os.path.isfile(file.path):
+                    os.remove(file.path)
+            size = len(os.listdir(self.temp_dir))
+            if size > 0:
+                logging.error("There should not be any files in temp dir %s",
+                              self.temp_dir)
+        else:
+            os.mkdir(self.temp_dir)
+        logging.info("Temp dir is: %s", self.temp_dir)
+
+    def process_config_data(self):
         """ Read the config file, and the override file if it exists,
         and store the merged result in self.config_data.
         Also, write the result to the merge file if one is given.
         """
-        self.config_file = cfg.config_file
-        self.override_file = cfg.override_file
-        self.merged_file = cfg.merged_file
-        logging.debug("config_file = %s", self.config_file)
-        logging.debug("override_file = %s", str(self.override_file))
-        logging.debug("merged_file = %s", str(self.merged_file))
         # Read config data
         if os.path.isfile(self.config_file):
             logging.debug("Using Config file: %s", self.config_file)
@@ -122,6 +121,7 @@ class Pyalgofetcher:
         else:
             logging.critical("Config file does not exist: %s", self.config_file)
             sys.exit(1)
+
         # Read override file if it exists
         override_file_data = {}
         if os.path.isfile(self.override_file):
@@ -130,12 +130,16 @@ class Pyalgofetcher:
                     override_file_data = yaml.safe_load(stream)
                 except yaml.YAMLError as exc:
                     logging.critical(exc)
+
         # Store the (merged) config data in self.config_data
-        self.config_data = orig_config_data
-        # print("Applying override_file_data: " + str(override_file_data))
+        config_data = orig_config_data
+
+        logging.debug("Applying override_file_data: %s",  override_file_data)
         if override_file_data is not None:
-            self.config_data = merge(orig_config_data, override_file_data)
-        # Store the resulting merged data to a file (if given a 'merged_file'
+            config_data = merge(orig_config_data, override_file_data)
+
+        # Store the resulting merged data to a file (if given a 'merged_file')
+        # This is for debugging. So the user can see the effective config data easily.
         if self.merged_file is not None:
             # Ensure parent directory for merged file exists
             directory = Path(self.merged_file).parent
@@ -143,7 +147,9 @@ class Pyalgofetcher:
                 os.makedirs(directory)
             # Write merged file
             with open(self.merged_file, 'w', encoding="utf8") as out_file:
-                yaml.dump(self.config_data, out_file)
+                yaml.dump(config_data, out_file)
+
+        return config_data
 
     def write_df(self, abs_filename, data_frame):
         """ Write the dataframe to a file. Format details are in the config data"""
@@ -160,19 +166,19 @@ class Pyalgofetcher:
         if self.output_format == "csv":
             csv_header = self.config_data['output_config']['file']['format_args']['header']
             if str(csv_header).lower() == 'false':
-                data_frame.to_csv(abs_filename, header=None, index=False, \
-                                  date_format = '%Y-%m-%d')
+                data_frame.to_csv(abs_filename, header=None, index=False,
+                                  date_format='%Y-%m-%d')
             else:
-                data_frame.to_csv(abs_filename, index=False, \
-                                  date_format = '%Y-%m-%d')
+                data_frame.to_csv(abs_filename, index=False,
+                                  date_format='%Y-%m-%d')
         elif self.output_format == "json":
             orient = self.config_data['output_config']['file']['format_args']['orient']
             if str(orient).lower() == 'table':
-                data_frame.to_json(abs_filename, orient="table", \
-                                   date_format = 'iso', date_unit='s')
+                data_frame.to_json(abs_filename, orient="table",
+                                   date_format='iso', date_unit='s')
             if str(orient).lower() == 'records':
-                data_frame.to_json(abs_filename, orient="records", lines=True, \
-                                   date_format = 'iso', date_unit='s')
+                data_frame.to_json(abs_filename, orient="records", lines=True,
+                                   date_format='iso', date_unit='s')
             else:
                 logging.critical("Unsupported value of orient: %s", orient)
                 sys.exit(1)
@@ -244,39 +250,40 @@ class Pyalgofetcher:
         logging.info("Get data from the FED, while fixing date fields, at: %s", url)
 
         try:
-            fed_date_parser = lambda s: datetime.datetime.strptime(s,'%Y-%m-%d')
+            fed_date_parser = lambda s: datetime.datetime.strptime(s, '%Y-%m-%d')
             data_frame = pd.read_csv(url,
-                                     parse_dates=['As Of Date','Maturity Date'],
+                                     parse_dates=['As Of Date', 'Maturity Date'],
                                      date_parser=fed_date_parser)
         except pd.errors.ParserError as parse_error:
             logging.error('Can not read the Fed data at all. Error: %s', parse_error)
             sys.exit(1)
         except TypeError as type_error:
-            logging.error('Type Error... Try again. Error: %s', type_error)
+            logging.error('Type Error: %s', type_error)
+            logging.error('This happens seemingly at random. JUST RUN THE PROGRAM AGAIN')
             sys.exit(1)
 
-        # Make the column names sane for relational datases
-        data_frame.rename(columns = {'As Of Date':'as_of_date',
-                                     'CUSIP':'cusip',
-                                     'Security Type':'security_type',
-                                     'Security Description':'security_description',
-                                     'Term':'term',
-                                     'Maturity Date':'maturity_date',
-                                     'Issuer':'issuer',
-                                     'Spread (%)':'spread_pct',
-                                     'Coupon (%)':'coupon_pct',
-                                     'Current Face Value':'current_face_value',
-                                     'Par Value':'par_value',
-                                     'Inflation Compensation':'inflation_compensation',
-                                     'Percent Outstanding':'percent_outstanding',
-                                     'Change From Prior Week':'change_from_prior_week',
-                                     'Change From Prior Year':'change_from_prior_year',
-                                     'is Aggregated':'is_aggregated'
-                                     }, inplace = True)
+        # Make the column names sane for relational databases
+        data_frame.rename(columns={'As Of Date': 'as_of_date',
+                                   'CUSIP': 'cusip',
+                                   'Security Type': 'security_type',
+                                   'Security Description': 'security_description',
+                                   'Term': 'term',
+                                   'Maturity Date': 'maturity_date',
+                                   'Issuer': 'issuer',
+                                   'Spread (%)': 'spread_pct',
+                                   'Coupon (%)': 'coupon_pct',
+                                   'Current Face Value': 'current_face_value',
+                                   'Par Value': 'par_value',
+                                   'Inflation Compensation': 'inflation_compensation',
+                                   'Percent Outstanding': 'percent_outstanding',
+                                   'Change From Prior Week': 'change_from_prior_week',
+                                   'Change From Prior Year': 'change_from_prior_year',
+                                   'is Aggregated': 'is_aggregated'
+                                   }, inplace=True)
 
         # Remove apostrophes from data in a column
-        #col = 'cusip'
-        #data_frame[col].replace("'","", inplace=True) # Works, but pylint does not like this
+        # col = 'cusip'
+        # data_frame[col].replace("'","", inplace=True)
         # Remove apostrophes from all the data in all columns
         data_frame.replace(to_replace="'", value="", inplace=True)
 
@@ -292,21 +299,31 @@ class Pyalgofetcher:
             self.our_web_driver.quit()
             self.our_web_driver = None
 
-    def get_our_web_driver(self):
+    def get_our_web_driver(self, feed_api):
         """ Reuse the Selenium web driver. Create a new one if necessary.
         Call cleanup_our_web_driver to ensure you have a new one """
+
+        # See if we can re-use the current web-driver session
         if self.our_web_driver is not None:
-            return self.our_web_driver
+            logging.info("The web driver exists already")
+            if self.latest_selenium_login == feed_api:
+                logging.info("Re-using the web driver since the feed_api is the same.")
+                return self.our_web_driver
+            else:
+                logging.info("Destroying the web driver since the feed_api is not the same.")
+                self.cleanup_our_web_driver()
+
+        logging.info("Creating a new web driver")
 
         # Assume Firefox and the Gecko Driver are installed
         # Create a profile that will allow fetching CSV files
         ff_options = Options()
-        ff_options.set_preference("browser.download.folderList",2)
+        ff_options.set_preference("browser.download.folderList", 2)
         ff_options.set_preference("browser.download.dir", self.temp_dir)
         ff_options.set_preference("browser.download.manager.showWhenStarting", False)
-        ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
+        ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk", "text/csv")
         ff_options.set_preference("browser.download.manager.alertOnEXEOpen", False)
-        ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk", \
+        ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk",
                                   "application/msword, application/csv, \
                                   application/ris, text/csv, \
                                   image/png, application/pdf, text/html, \
@@ -338,29 +355,29 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(self.temp_dir, rel_filename))
         # Read the CSV file and skip the metadata line before the header
         # Make the date fields actual Date types
-        stockcharts_date_parser = lambda s: datetime.datetime.strptime(s,'%m/%d/%Y')
+        stockcharts_date_parser = lambda s: datetime.datetime.strptime(s, '%m/%d/%Y')
         # The column names have leading spaces, just skip that silly header row
         data_frame = pd.read_csv(abs_filename,
                                  skiprows=1,
                                  parse_dates=['      Date'],
                                  date_parser=stockcharts_date_parser)
         # Remove the downloaded file from the temp dir
-        if os.path.isfile( abs_filename ):
-            os.remove( abs_filename )
+        if os.path.isfile(abs_filename):
+            os.remove(abs_filename)
         else:
             logging.warning("Somehow there is no file to delete at: %s", abs_filename)
         # Fix the column names in the data frame
         data_frame.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
 
         # Strip *leading and trailing* spaces from the data
-        #for col in data_frame.columns:
+        # for col in data_frame.columns:
         #    if pd.api.types.is_string_dtype(data_frame[col]):
         #        data_frame[col] = data_frame[col].str.strip()  #pylint suggests this is bad
         #
         # Fine, strip ALL spaces from the data
         data_frame.replace(to_replace=" ", value="", inplace=True)
 
-    # Write the data frame
+        # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
@@ -369,8 +386,8 @@ class Pyalgofetcher:
         """ Process data that is read from StockCharts """
 
         # For dev/testing, immediately process the file in the temp dir
-        #symbol_returned = '$VIX'
-        #self.handle_stockchart_temp_file(feed, feed_dir, feed_api, symbol_returned)
+        # symbol_returned = '$VIX'
+        # self.handle_stockchart_temp_file(feed, feed_dir, feed_api, symbol_returned)
 
         # Get API args
         api_args = self.config_data['feeds'][feed]['api_args']
@@ -380,36 +397,27 @@ class Pyalgofetcher:
         symbol = str(api_args['symbol']).upper()
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
 
-        # See if we can re-use the current web-driver session
-        reuse_webdriver = False
-        if self.our_web_driver is not None:
-            logging.info("The web driver exists already")
-            if self.latest_selenium_login == feed_api:
-                logging.info("Re-using the web driver since the feed_api is the same.")
-                reuse_webdriver = True
-            else:
-                logging.info("Destroying the web driver since the feed_api is not the same.")
-                self.cleanup_our_web_driver()
-
         # Get a new driver or re-use the old one
-        driver = self.get_our_web_driver()
+        driver = self.get_our_web_driver(feed_api)
 
         login_url = 'https://stockcharts.com'
 
-        if reuse_webdriver is False:
+        if self.latest_selenium_login == feed_api:
+            logging.info("Assuming we do not need to log in again")
+        else:
             creds = self.config_data['credentials']['feed_api'][feed_api]
             username = creds['username']
             password = creds['password']
             driver.get(login_url)
             logging.debug("Opened URL: %s", driver.current_url)
-            driver.implicitly_wait(1)
+            driver.implicitly_wait(1)  # Don't do things too much faster than a human could.
             logging.debug("URL is currently: %s", driver.current_url)
             # Click on Login
-            #element = self.get_element(By.XPATH, '/html/body/nav/div/div[1]/ul/li[1]/a')
+            # element = self.get_element(By.XPATH, '/html/body/nav/div/div[1]/ul/li[1]/a')
             element = self.get_element(By.LINK_TEXT, 'Log In')
             element.click()
             # Enter username
-            #element = self.get_element(By.XPATH, '//*[@id="form_UserID"]')
+            # element = self.get_element(By.XPATH, '//*[@id="form_UserID"]')
             # Prefer By.ID since it is fastest, and should change the least
             element = self.get_element(By.ID, 'form_UserID')
             element.send_keys(username)
@@ -425,21 +433,12 @@ class Pyalgofetcher:
             logging.info("Should be logged in now")
             self.latest_selenium_login = feed_api
 
-        # STRATEGY A:Go directly to the URL with the data for a symbol
-        # NOPE... it changed
-        # data_url='https://stockcharts.com/h-hd/?' + symbol
-        # As of 2021-01-06, it is here...
-        # https://stockcharts.com/h-sc/ui?s=$VVIX
-        #driver.get(data_url)
-
-        # STRATEGY B: type in the symbol in the form
-        #
         # Make sure we are on the page with the "SharpChart" form
         driver.get(login_url)
-        #
-        # Assume the "SharpChart" is shown by default.xs
+
+        # Assume the "SharpChart" is shown by default.
         # Add code here if that changes.
-        #
+
         # Enter the symbol in the form
         element = self.get_element(By.ID, 'nav-chartSearch-input')
         element.send_keys(symbol)
@@ -447,8 +446,8 @@ class Pyalgofetcher:
         element.send_keys(Keys.ENTER)
         #
         # If enter stops working, click on the "Go" Button
-        #element = self.get_via_id('nav-chartSearch-submit')
-        #element.click()
+        # element = self.get_via_id('nav-chartSearch-submit')
+        # element.click()
 
         # Click on "Past Data"
         element = self.get_element(By.LINK_TEXT, 'Past Data')
@@ -462,21 +461,20 @@ class Pyalgofetcher:
         # Read the name of the symbol actually used by SC
         # This symbol is used when the file is named during the download.
         # The symbol used to get the data can differ (e.g. have a missing leading '$')
-        #<input id="symbolinput" type="text" autocomplete="off" value="$VIX"
+        # <input id="symbolinput" type="text" autocomplete="off" value="$VIX"
         element = self.get_element(By.ID, 'symbol')
         symbol_returned = element.get_attribute('innerHTML')
 
         self.handle_stockchart_temp_file(feed, feed_dir, feed_api, symbol_returned)
 
-    def get_element(self,
-                    locator_type, locator_str, timeout=20, poll_frequency=1.0):
+    def get_element(self, locator_type, locator_str, timeout=20, poll_frequency=1.0):
         """ This is just a convenience wrapper to call the Selenium code"""
 
         driver = self.our_web_driver
 
         try:
-            WebDriverWait(driver, timeout, poll_frequency).\
-                until(EC.element_to_be_clickable((locator_type, locator_str)))
+            WebDriverWait(driver, timeout, poll_frequency). \
+                until(ec.element_to_be_clickable((locator_type, locator_str)))
             element = driver.find_element(locator_type, locator_str)
         except selenium.common.exceptions.NoSuchElementException as nse_exception:
             logging.error("Error searching for element with xpath: %s", locator_str)
@@ -489,77 +487,10 @@ class Pyalgofetcher:
             traceback.print_exc()
             sys.exit(1)
 
-        # Slow everything down so as to avoid annoying website admins
+        # Slow everything down in order to avoid annoying website admins
         driver.implicitly_wait(0.5)
 
         return element
-
-    def process_whysper_feed(self, feed, feed_dir, feed_api):
-        """ Process data that is read from Whysper.io """
-
-        # Get API args
-        api_args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(api_args))
-        logging.debug("feed_dir: %s", feed_dir)
-
-        # See if we can re-use the current web-driver session
-        reuse_webdriver = False
-        if self.our_web_driver is not None:
-            logging.info("The web driver exists already")
-            if self.latest_selenium_login == feed_api:
-                logging.info("Re-using the web driver since the feed_api is the same.")
-                reuse_webdriver = True
-            else:
-                logging.info("Destroying the web driver since the feed_api is not the same.")
-                self.cleanup_our_web_driver()
-
-        # Get a new driver or re-use the old one
-        driver = self.get_our_web_driver()
-
-        if reuse_webdriver is False:
-            login_url = api_args['url']
-            creds = self.config_data['credentials']['feed_api'][feed_api]
-            username = creds['username']
-            password = creds['password']
-            # Assume Firefox with Gecko Driver
-            #options = webdriver.FirefoxOptions()
-            #options.add_argument("--profile <some_path>")
-            driver = self.get_our_web_driver()
-            driver.get(login_url)
-            logging.debug("Opened URL: %s", driver.current_url)
-            driver.implicitly_wait(1)
-            logging.debug("URL is currently: %s", driver.current_url)
-            # Click on the sandwich
-            element = self.get_element(By.XPATH, '/html/body/nav/div/div[1]/button')
-            element.click()
-            # Click on Login
-            element = self.get_element(By.XPATH, '/html/body/nav/div/div[2]/ul/li[9]/a')
-            element.click()
-            # Enter username
-            #element = self.get_element(By.XPATH, '//*[@id="Input_Email"]')
-            element = self.get_element(By.ID, 'Input_Email')
-            element.send_keys(username)
-            # Enter password
-            #element = self.get_element(By.XPATH, '//*[@id="Input_Password"]')
-            element = self.get_element(By.ID, 'Input_Password')
-            element.send_keys(password)
-            # Click on the second "log in" button
-            element = self.get_element(By.XPATH, driver,
-              '/html/body/section/div[2]/div[1]/section/form/div[5]/button')
-            element.click()
-            # Remember that we are logged in
-            logging.info("Should be logged in now")
-            self.latest_selenium_login = feed_api
-
-        # Go the mail page again
-        driver.get(login_url)
-        login_url = api_args['url']
-        # Click on the sandwich
-        element = self.get_element(By.XPATH, '/html/body/nav/div/div[1]/button')
-        element.click()
-        # Click on website feeds
-        element = self.get_element(By.XPATH, '/html/body/nav/div/div[2]/ul/li[4]/a')
-        element.click()
 
     def create_feed_api_dir(self, feed, feed_api):
         """ Ensure the directory to hold the data for this feed exists. Return its path """
@@ -578,8 +509,7 @@ class Pyalgofetcher:
         return hist_dir
 
     def process_feed(self, feed):
-        """ Process the given feed
-        """
+        """ Process the given feed """
         feed_cfg = self.config_data["feeds"][feed]
         logging.debug("Feed cfg: %s", str(feed_cfg))
         feed_api = str(feed_cfg['api']).lower()
@@ -619,6 +549,7 @@ class Pyalgofetcher:
         self.cleanup_our_web_driver()
         logging.info("Successfully terminating program")
 
+
 def merge(dict_a, dict_b, path=None, update=True):
     """ Merge 'b' into 'a'
         https://stackoverflow.com/questions/7204805/dictionaries-of-dictionaries-merge
@@ -642,7 +573,7 @@ def merge(dict_a, dict_b, path=None, update=True):
                 dict_a[key] = dict_b[key]
             else:
                 msg = 'Conflict at %s', (path + [str(key)])
-                raise Exception( msg )
+                raise Exception(msg)
         else:
             dict_a[key] = dict_b[key]
     return dict_a
@@ -711,17 +642,17 @@ def read_cli_args():
     parser.add_argument('-O', '--output-destinations',
                         action='store', type=str, dest="output_destinations",
                         help='Output Destinations. Currently, only supports "file"'
-                        + '. Default: from config file',
+                             + '. Default: from config file',
                         default=output_format)
     parser.add_argument('-F', '--output-format',
                         action='store', type=str, dest="output_format",
                         help='Output format for files. csv and json are supported.'
-                        + 'Default: from config file',
+                             + 'Default: from config file',
                         default=output_format)
     parser.add_argument('-C', '--compression',
                         action='store', type=str, dest="compression",
                         help='Compression type for files: None,gz, bz2, xz, or zip.'
-                        + ' Default: from config file',
+                             + ' Default: from config file',
                         default=compression)
     args = parser.parse_args()
     return args

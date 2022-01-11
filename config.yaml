@@ -47,15 +47,6 @@ feeds:
     api_args:
       symbol: AAPL
 
-
-  # Whysper API: This works. Just use it for testing.
-  # Put this in between "sc" type feeds to force re-logging in
-  #WHYSPER_1:
-  #  api: whysper
-  #  api_args:
-  #    url: "https://whysper.io"
-
-
   # WTF ... As of 2022-01-07, this feed is not working properly
   # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
   FED_Soma:
@@ -84,11 +75,11 @@ feeds:
   #  api_args:
   #    symbol: "VIX"
   #    source: "yahoo"
-  #SPY:
-  #  api: pdr
-  #  api_args:
-  #    symbol: "SPY"
-  #    source: "yahoo"
+  SPY:
+    api: pdr
+    api_args:
+      symbol: "SPY"
+      source: "yahoo"
 
 
 # Do not put private information in this file!
