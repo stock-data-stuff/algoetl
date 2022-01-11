@@ -10,38 +10,32 @@ MAKEFILE_PATH=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 # This is necessary because we use "source" below
 SHELL:=/bin/bash
 
-# Some script commands
-START_DOCKER=$(shell ./run -u)
-STOP_DOCKER=$(shell ./run -d)
-PURGE_DOCKER=$(shell ./run -c)
-DOCKER_STATUS=$(shell ./run -s)
-DOCKER_LOGIN=$(shell ./run -l)
-PYSPARK=$(shell ./run -p)
-
 all: start
 
 clean:
 	$(info Clean)
-	$(STOP_DOCKER)
+	./run -d
 
 clean-all:
 	$(info Clean All)
-	$(PURGE_DOCKER)
+	./run -c
 
 login:
 	$(info Log into master node)
-	$(DOCKER_LOGIN)
+	./run -l
 
 status:
 	$(info Show docker status)
-	$(DOCKER_SATUS)
+	./run -s
 
 pyspark:
 	$(info Run Pyspark on master node)
-	$(PYSPARK)
+	./run -p
 
 start:
 	$(info Run)
-	$(START_DOCKER)
-	$(DOCKER_STATUS)
+	./run -u
+	sleep 3
+	./run -s
+
 
