@@ -3,3 +3,4 @@ pyyaml
 selenium
 pandas
 tqdm
+pyflakes

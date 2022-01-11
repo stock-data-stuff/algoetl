@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """ This program fetches some data, as defined by the given config file."""
+
+
 import os
 import sys
 import argparse
@@ -18,7 +20,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 
 class Pyalgofetcher:
     """ This class does all the work."""
@@ -48,7 +49,6 @@ class Pyalgofetcher:
             os.mkdir(self.history_dir)
 
         # start and end of processing
-        # TODO: assert that the start/end date formats are 'yyyy-mm-dd'
         self.start_date = cfg.start_date
         self.end_date = cfg.end_date
         # Allow overriding the output format
@@ -212,7 +212,6 @@ class Pyalgofetcher:
                              feed, self.start_date, self.end_date)
             sys.exit(1)
         # Make the column names appropriate for a relational database
-        todo = """ TODO: continue working on the pandas data reader
         data_frame = data_frame.rename(columns={'T': 'date',
                                                 'High': 'high',
                                                 'Low': 'low',
@@ -221,7 +220,6 @@ class Pyalgofetcher:
                                                 'Volume': 'volume',
                                                 'Adj Close': 'adj_close'
                                                 })
-                                                """
         logging.debug("PDR Columns: %s", data_frame.columns)
         # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
@@ -233,34 +231,29 @@ class Pyalgofetcher:
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
         args = self.config_data['feeds'][feed]['api_args']
         logging.debug("API args: %s", str(args))
-        #symbol = args['symbol'] # This was already used to calculate the feed_dir
+
+        # Construct the query URL
         product_code = args['productCode']
         query = args['query']
         holding_types = args['holdingTypes']
-        # Construct the query URL
         url = 'https://markets.newyorkfed.org/read?productCode=' + product_code
         url += '&startDt=' + self.start_date + '&endDt=' + self.end_date
-        url += '&query=' + query + '&holdingTypes=' + holding_types + '&format=csv'
+        url += '&query=' + query + '&holdingTypes=' + holding_types
+        url += '&format=csv'
 
-        # Fetch the data into a dataframe
+        logging.info("Get data from the FED, while fixing date fields, at: %s", url)
 
-        just_see_if_we_can_use_the_url = True
-        if just_see_if_we_can_use_the_url is True:
-            logging.info("Just try to get the data as-is from the FED at: %s", url)
-            try:
-                data_frame1 = pd.read_csv(url)
-            except pd.errors.ParserError as parse_error:
-                logging.error('Can not read the Fed data at all. This is not due to any work done during download.')
-                sys.exit(1)
-        else:
-            # Download the data while making the date fields actual Date types
-            logging.info("Get data from the FED, while fixing date fields, at: %s", url)
+        try:
             fed_date_parser = lambda s: datetime.datetime.strptime(s,'%Y-%m-%d')
-            try:
-                data_frame = pd.read_csv(url, parse_dates=['As Of Date','Maturity Date'], date_parser=fed_date_parser)
-            except pd.errors.ParserError as parse_error:
-                logging.error('Can not read the Fed data at all')
-                sys.exit(1)
+            data_frame = pd.read_csv(url,
+                                     parse_dates=['As Of Date','Maturity Date'],
+                                     date_parser=fed_date_parser)
+        except pd.errors.ParserError as parse_error:
+            logging.error('Can not read the Fed data at all. Error: %s', parse_error)
+            sys.exit(1)
+        except TypeError as type_error:
+            logging.error('Type Error... Try again. Error: %s', type_error)
+            sys.exit(1)
 
         # Make the column names sane for relational datases
         data_frame.rename(columns = {'As Of Date':'as_of_date',
@@ -280,9 +273,13 @@ class Pyalgofetcher:
                                      'Change From Prior Year':'change_from_prior_year',
                                      'is Aggregated':'is_aggregated'
                                      }, inplace = True)
+
         # Remove apostrophes from data in a column
-        col = 'cusip'
-        data_frame[col] = data_frame[col].map(lambda x: str(x).replace("'","")) # TODO: pylint suggests this is bad
+        #col = 'cusip'
+        #data_frame[col].replace("'","", inplace=True) # Works, but pylint does not like this
+        # Remove apostrophes from all the data in all columns
+        data_frame.replace(to_replace="'", value="", inplace=True)
+
         # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
@@ -300,33 +297,38 @@ class Pyalgofetcher:
         Call cleanup_our_web_driver to ensure you have a new one """
         if self.our_web_driver is not None:
             return self.our_web_driver
-        else:
-            # Assume Firefox and the Gecko Driver are installed
-            # Create a profile that will allow fetching CSV files
-            ff_options = Options()
-            ff_options.set_preference("browser.download.folderList",2)
-            ff_options.set_preference("browser.download.dir", self.temp_dir)
-            ff_options.set_preference("browser.download.manager.showWhenStarting", False)
-            ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
-            ff_options.set_preference("browser.download.manager.alertOnEXEOpen", False)
-            ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk", \
-                                      "application/msword, application/csv, application/ris, text/csv, \
-                                      image/png, application/pdf, text/html, text/plain, application/zip, \
-                                      application/x-zip, application/x-zip-compressed, application/download, \
-                                      application/octet-stream")
-            ff_options.set_preference("browser.download.manager.showWhenStarting", False)
-            ff_options.set_preference("browser.download.manager.focusWhenStarting", False)
-            ff_options.set_preference("browser.download.useDownloadDir", True)
-            ff_options.set_preference("browser.helperApps.alwaysAsk.force", False)
-            ff_options.set_preference("browser.download.manager.alertOnEXEOpen", False)
-            ff_options.set_preference("browser.download.manager.closeWhenDone", True)
-            ff_options.set_preference("browser.download.manager.showAlertOnComplete", False)
-            ff_options.set_preference("browser.download.manager.useWindow", False)
-            ff_options.set_preference("services.sync.prefs.sync.browser.download.manager.showWhenStarting", False)
-            ff_options.set_preference("pdfjs.disabled", True)
-            driver = webdriver.Firefox(options=ff_options)
-            self.our_web_driver = driver
-            return driver
+
+        # Assume Firefox and the Gecko Driver are installed
+        # Create a profile that will allow fetching CSV files
+        ff_options = Options()
+        ff_options.set_preference("browser.download.folderList",2)
+        ff_options.set_preference("browser.download.dir", self.temp_dir)
+        ff_options.set_preference("browser.download.manager.showWhenStarting", False)
+        ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk","text/csv")
+        ff_options.set_preference("browser.download.manager.alertOnEXEOpen", False)
+        ff_options.set_preference("browser.helperApps.neverAsk.saveToDisk", \
+                                  "application/msword, application/csv, \
+                                  application/ris, text/csv, \
+                                  image/png, application/pdf, text/html, \
+                                  text/plain, application/zip, \
+                                  application/x-zip, application/x-zip-compressed, \
+                                  application/download, \
+                                  application/octet-stream")
+        ff_options.set_preference("browser.download.manager.showWhenStarting", False)
+        ff_options.set_preference("browser.download.manager.focusWhenStarting", False)
+        ff_options.set_preference("browser.download.useDownloadDir", True)
+        ff_options.set_preference("browser.helperApps.alwaysAsk.force", False)
+        ff_options.set_preference("browser.download.manager.alertOnEXEOpen", False)
+        ff_options.set_preference("browser.download.manager.closeWhenDone", True)
+        ff_options.set_preference("browser.download.manager.showAlertOnComplete", False)
+        ff_options.set_preference("browser.download.manager.useWindow", False)
+        ff_options.set_preference(
+            "services.sync.prefs.sync.browser.download.manager.showWhenStarting",
+            False)
+        ff_options.set_preference("pdfjs.disabled", True)
+        driver = webdriver.Firefox(options=ff_options)
+        self.our_web_driver = driver
+        return driver
 
     def handle_stockchart_temp_file(self, feed, feed_dir, feed_api, symbol_returned):
         """ Read the file from the temp dir downloaded from StockCharts.com
@@ -349,11 +351,16 @@ class Pyalgofetcher:
             logging.warning("Somehow there is no file to delete at: %s", abs_filename)
         # Fix the column names in the data frame
         data_frame.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+
         # Strip *leading and trailing* spaces from the data
-        for col in data_frame.columns:
-            if pd.api.types.is_string_dtype(data_frame[col]):
-                data_frame[col] = data_frame[col].str.strip()  #pylint suggests this is bad
-        # Write the data frame
+        #for col in data_frame.columns:
+        #    if pd.api.types.is_string_dtype(data_frame[col]):
+        #        data_frame[col] = data_frame[col].str.strip()  #pylint suggests this is bad
+        #
+        # Fine, strip ALL spaces from the data
+        data_frame.replace(to_replace=" ", value="", inplace=True)
+
+    # Write the data frame
         rel_filename = self.make_rel_filename(feed_api, feed)
         abs_filename = os.path.normpath(os.path.join(feed_dir, rel_filename))
         self.write_df(abs_filename, data_frame)
@@ -373,13 +380,13 @@ class Pyalgofetcher:
         symbol = str(api_args['symbol']).upper()
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
 
-        # See if we can skip logging in
-        skip_login = False
+        # See if we can re-use the current web-driver session
+        reuse_webdriver = False
         if self.our_web_driver is not None:
             logging.info("The web driver exists already")
             if self.latest_selenium_login == feed_api:
                 logging.info("Re-using the web driver since the feed_api is the same.")
-                skip_login = True
+                reuse_webdriver = True
             else:
                 logging.info("Destroying the web driver since the feed_api is not the same.")
                 self.cleanup_our_web_driver()
@@ -387,11 +394,9 @@ class Pyalgofetcher:
         # Get a new driver or re-use the old one
         driver = self.get_our_web_driver()
 
-        #driver.maximize_window()
-
         login_url = 'https://stockcharts.com'
 
-        if skip_login is False:
+        if reuse_webdriver is False:
             creds = self.config_data['credentials']['feed_api'][feed_api]
             username = creds['username']
             password = creds['password']
@@ -400,26 +405,20 @@ class Pyalgofetcher:
             driver.implicitly_wait(1)
             logging.debug("URL is currently: %s", driver.current_url)
             # Click on Login
-            #element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/ul/li[1]/a')
-            element = self.get_element(By.LINK_TEXT, driver, 'Log In')
+            #element = self.get_element(By.XPATH, '/html/body/nav/div/div[1]/ul/li[1]/a')
+            element = self.get_element(By.LINK_TEXT, 'Log In')
             element.click()
             # Enter username
-            #element = self.get_element(By.XPATH, driver, '//*[@id="form_UserID"]')
+            #element = self.get_element(By.XPATH, '//*[@id="form_UserID"]')
             # Prefer By.ID since it is fastest, and should change the least
-            element = self.get_element(By.ID, driver, 'form_UserID')
+            element = self.get_element(By.ID, 'form_UserID')
             element.send_keys(username)
             # Enter password
-            element = self.get_element(By.ID, driver, 'form_UserPassword')
+            element = self.get_element(By.ID, 'form_UserPassword')
             element.send_keys(password)
 
             # Click on the second "log in" button
-            # Works
-            # element = self.get_element(By.XPATH, driver, '/html/body/div/div/section/div/div[1]/div/div/div/form/fieldset/button')
-            element = self.get_element(By.CSS_SELECTOR, driver, 'button.btn')
-            # Fails
-            # element = self.get_element(By.LINK_TEXT, driver, 'Log In')
-            # Untested
-            # CSS_PATH=html body#page-top div#pagebody div#pagecontents section#login-section div.container-fluid div.row div.col-lg-12.col-md-12.col-sm-12.col-xs-12 div.login-panel.panel.panel-default div.panel-body form#loginform fieldset button.btn.btn-lg.btn-success.btn-block.login-panel-button
+            element = self.get_element(By.CSS_SELECTOR, 'button.btn')
             element.click()
 
             # Remember that we are logged in
@@ -442,40 +441,43 @@ class Pyalgofetcher:
         # Add code here if that changes.
         #
         # Enter the symbol in the form
-        element = self.get_element(By.ID, driver, 'nav-chartSearch-input')
+        element = self.get_element(By.ID, 'nav-chartSearch-input')
         element.send_keys(symbol)
         # Hit enter to make it show the chart data in the web page
         element.send_keys(Keys.ENTER)
         #
         # If enter stops working, click on the "Go" Button
-        #element = self.get_via_id(driver, 'nav-chartSearch-submit')
+        #element = self.get_via_id('nav-chartSearch-submit')
         #element.click()
 
         # Click on "Past Data"
-        element = self.get_element(By.LINK_TEXT, driver, 'Past Data')
+        element = self.get_element(By.LINK_TEXT, 'Past Data')
         element.click()
 
         # Click to download data set (to "browser.download.dir")
         # <a href="#" id="download" class="download-data">Download Data Set</a>
-        element = self.get_element(By.ID, driver, 'download')
+        element = self.get_element(By.ID, 'download')
         element.click()
 
         # Read the name of the symbol actually used by SC
         # This symbol is used when the file is named during the download.
         # The symbol used to get the data can differ (e.g. have a missing leading '$')
         #<input id="symbolinput" type="text" autocomplete="off" value="$VIX"
-        element = self.get_element(By.ID, driver, 'symbol')
+        element = self.get_element(By.ID, 'symbol')
         symbol_returned = element.get_attribute('innerHTML')
 
         self.handle_stockchart_temp_file(feed, feed_dir, feed_api, symbol_returned)
 
-
-    def get_element(self, locator_type, driver, locator_str, timeout=20, poll_frequency=1.0):
+    def get_element(self,
+                    locator_type, locator_str, timeout=20, poll_frequency=1.0):
         """ This is just a convenience wrapper to call the Selenium code"""
-        # locator_type: e.g. By.XPATH, or By.ID
-        # locator_str: '<ID_OR_XPATH_TO_ELEMENT_ETC>'
+
+        driver = self.our_web_driver
+
         try:
-            element = WebDriverWait(driver, timeout, poll_frequency).until(EC.element_to_be_clickable((locator_type, locator_str)))
+            WebDriverWait(driver, timeout, poll_frequency).\
+                until(EC.element_to_be_clickable((locator_type, locator_str)))
+            element = driver.find_element(locator_type, locator_str)
         except selenium.common.exceptions.NoSuchElementException as nse_exception:
             logging.error("Error searching for element with xpath: %s", locator_str)
             logging.error("Got exception: %s", nse_exception)
@@ -498,14 +500,15 @@ class Pyalgofetcher:
         # Get API args
         api_args = self.config_data['feeds'][feed]['api_args']
         logging.debug("API args: %s", str(api_args))
+        logging.debug("feed_dir: %s", feed_dir)
 
-        # See if we can skip logging in
-        skip_login = False
+        # See if we can re-use the current web-driver session
+        reuse_webdriver = False
         if self.our_web_driver is not None:
             logging.info("The web driver exists already")
             if self.latest_selenium_login == feed_api:
                 logging.info("Re-using the web driver since the feed_api is the same.")
-                skip_login = True
+                reuse_webdriver = True
             else:
                 logging.info("Destroying the web driver since the feed_api is not the same.")
                 self.cleanup_our_web_driver()
@@ -513,9 +516,7 @@ class Pyalgofetcher:
         # Get a new driver or re-use the old one
         driver = self.get_our_web_driver()
 
-        #driver.maximize_window()
-
-        if skip_login is False:
+        if reuse_webdriver is False:
             login_url = api_args['url']
             creds = self.config_data['credentials']['feed_api'][feed_api]
             username = creds['username']
@@ -524,27 +525,27 @@ class Pyalgofetcher:
             #options = webdriver.FirefoxOptions()
             #options.add_argument("--profile <some_path>")
             driver = self.get_our_web_driver()
-            #driver.maximize_window()
             driver.get(login_url)
             logging.debug("Opened URL: %s", driver.current_url)
             driver.implicitly_wait(1)
             logging.debug("URL is currently: %s", driver.current_url)
             # Click on the sandwich
-            element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/button')
+            element = self.get_element(By.XPATH, '/html/body/nav/div/div[1]/button')
             element.click()
             # Click on Login
-            element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[2]/ul/li[9]/a')
+            element = self.get_element(By.XPATH, '/html/body/nav/div/div[2]/ul/li[9]/a')
             element.click()
             # Enter username
-            #element = self.get_element(By.XPATH, driver, '//*[@id="Input_Email"]')
-            element = self.get_element(By.ID, driver, 'Input_Email')
+            #element = self.get_element(By.XPATH, '//*[@id="Input_Email"]')
+            element = self.get_element(By.ID, 'Input_Email')
             element.send_keys(username)
             # Enter password
-            #element = self.get_element(By.XPATH, driver, '//*[@id="Input_Password"]')
-            element = self.get_element(By.ID, driver, 'Input_Password')
+            #element = self.get_element(By.XPATH, '//*[@id="Input_Password"]')
+            element = self.get_element(By.ID, 'Input_Password')
             element.send_keys(password)
             # Click on the second "log in" button
-            element = self.get_element(By.XPATH, driver, '/html/body/section/div[2]/div[1]/section/form/div[5]/button')
+            element = self.get_element(By.XPATH, driver,
+              '/html/body/section/div[2]/div[1]/section/form/div[5]/button')
             element.click()
             # Remember that we are logged in
             logging.info("Should be logged in now")
@@ -554,10 +555,10 @@ class Pyalgofetcher:
         driver.get(login_url)
         login_url = api_args['url']
         # Click on the sandwich
-        element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[1]/button')
+        element = self.get_element(By.XPATH, '/html/body/nav/div/div[1]/button')
         element.click()
         # Click on website feeds
-        element = self.get_element(By.XPATH, driver, '/html/body/nav/div/div[2]/ul/li[4]/a')
+        element = self.get_element(By.XPATH, '/html/body/nav/div/div[2]/ul/li[4]/a')
         element.click()
 
     def create_feed_api_dir(self, feed, feed_api):

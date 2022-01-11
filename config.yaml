@@ -38,14 +38,14 @@ feeds:
       symbol: '$VIX'
       #symbol: 'VIX'    # 'symbol' is used to construct the URL to fetch the data
   # These work
-  #IBM:
-  #  api: sc
-  #  api_args:
-  #    symbol: IBM
-  #AAPL:
-  #  api: sc
-  #  api_args:
-  #    symbol: AAPL
+  IBM:
+    api: sc
+    api_args:
+      symbol: IBM
+  AAPL:
+    api: sc
+    api_args:
+      symbol: AAPL
 
 
   # Whysper API: This works. Just use it for testing.
@@ -58,14 +58,14 @@ feeds:
 
   # WTF ... As of 2022-01-07, this feed is not working properly
   # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
-  #FED_Soma:
-  #  api: fed
-  #  api_args:
-  #    symbol: "FED_Soma"
-  #    productCode: "30"
-  #    query: "details"
-  #    holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
-  #    format: "csv"
+  FED_Soma:
+    api: fed
+    api_args:
+      symbol: "FED_Soma"
+      productCode: "30"
+      query: "details"
+      holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
+      format: "csv"
   #
   #  # TODO: Somehow deal with the fact that this API is fragile.
   #  # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled

@@ -1,4 +1,4 @@
-.PHONY=all clean clean-all venv python3 deps test run
+.PHONY=all clean clean-all venv python3 deps test run lint pylint pyflakes
 
 # Force make to run targets sequentially
 .NOTPARALLEL:
@@ -53,8 +53,15 @@ run: clean
 	$(info Running the script without any setup...)
 	$(RUN_IMPORT)
 
+pylint: deps
+	$(info Running pylint. This is generally has false positives)
+	source $(VENV_DIR)/bin/activate && python -m pip install pylint && pylint --rcfile=./.pylintrc ./*.py
+
+pyflakes: deps
+	$(info Running pyflakes. This is faster than pylint)
+	source $(VENV_DIR)/bin/activate && python -m pip install pyflakes && pyflakes ./*.py
+
 # $(shell) munges the output onto one line
-lint: deps
+lint: pyflakes pylint
 	$(info Running some static code analysis)
-	source $(VENV_DIR)/bin/activate && python -m pip install pylint && pylint ./*.py
 
