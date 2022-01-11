@@ -49,7 +49,12 @@ function docker_status()
 
 function docker_run_pyspark()
 {
-    docker-compose exec -w /spark spark-master ./bin/pyspark
+    docker-compose exec -w /spark spark-master ./bin/pyspark --conf spark.sql.catalogImplementation=hive
+}
+
+function docker_run_initial_load()
+{
+    docker-compose exec -w /scripts spark-master ./initial-load
 }
 
 while [[ $# -gt 0 ]]; do
@@ -79,6 +84,10 @@ while [[ $# -gt 0 ]]; do
     -p|--pyspark)
         shift
         docker_run_pyspark
+        ;;
+    -i|--initial-load)
+        shift
+        docker_run_initial_load
         ;;
     -h|--help)
         show_usage

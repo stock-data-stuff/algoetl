@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# The scripts should be found locally here
+SCRIPT_DIR="/scripts"
+
+run_script () {
+  SCRIPT="$1"
+  echo "Running script $SCRIPT"
+  /spark/bin/spark-submit --conf spark.sql.catalogImplementation=hive "${SCRIPT_DIR}/${SCRIPT}"
+}
+
+
+run_test_scripts () {
+    #run_script "./test/test-spark-sql.py"
+    run_script "./test/test-read-vix-data.py"
+}
+
+
+run_test_scripts
+

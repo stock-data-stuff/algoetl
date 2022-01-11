@@ -2,6 +2,7 @@
 **/.venv
 **/.env
 feed-history/
+feed-history
 
 overrides.yaml
 .effective-config.yaml
