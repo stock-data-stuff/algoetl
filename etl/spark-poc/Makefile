@@ -1,4 +1,4 @@
-.PHONY=all clean start status
+.PHONY=all clean clean-all login status pyspark up run
 
 # Force make to run targets sequentially
 .NOTPARALLEL:
@@ -6,11 +6,7 @@
 # Directory containing this makefile. Includes trailing /
 MAKEFILE_PATH=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-# Set default shell as bash
-# This is necessary because we use "source" below
-SHELL:=/bin/bash
-
-all: start
+all: run
 
 clean:
 	$(info Clean)
@@ -20,21 +16,28 @@ clean-all:
 	$(info Clean All)
 	./run -c
 
-login:
-	$(info Log into master node)
-	./run -l
-
 status:
 	$(info Show docker status)
 	./run -s
 
-pyspark:
+create-docker-volume:
+	$(info Create docker volume for feed history)
+	./create-feed-history-volume.sh
+
+up: create-docker-volume
+	$(info Running docker-compose up)
+	./run -u
+
+login: up
+	$(info Log into master node)
+	./run -l
+
+pyspark: up
 	$(info Run Pyspark on master node)
 	./run -p
 
-start:
-	$(info Run)
-	./run -u
-	sleep 3
-	./run -s
+run: up
+	$(info Run the initial load)
+	sleep 4
+	./run -i
 
