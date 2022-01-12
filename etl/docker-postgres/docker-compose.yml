@@ -6,7 +6,7 @@ services:
     env_file:
       - database.env # configure postgres
     volumes:
-      - database-data:/var/lib/postgresql/data/
+      - ../../postgres-data:/var/lib/postgresql/data/
       - ".:/shared:rw"
     ports:
       - 5432:5432
@@ -16,5 +16,3 @@ services:
       timeout: 5s
       retries: 5
 
-volumes:
-  database-data: # named volumes can be managed easier using docker-compose
