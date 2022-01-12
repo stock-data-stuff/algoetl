@@ -32,24 +32,24 @@ feeds:
   # It seems ok to just mimic what a person could do.
   # But, slow the program down to about human 'web-traversal' speed.
   # We don't want to be a burden on the site.
-  VIX_from_sc:         # feeds[KEY] is used to name the directory and file with the data
+  vix:         # feeds[KEY] is used to name the directory and file with the data
     api: sc
     api_args:
       symbol: '$VIX'
       #symbol: 'VIX'    # 'symbol' is used to construct the URL to fetch the data
   # These work
-  IBM:
+  ibm:
     api: sc
     api_args:
       symbol: IBM
-  AAPL:
+  aapl:
     api: sc
     api_args:
       symbol: AAPL
 
   # WTF ... As of 2022-01-07, this feed is not working properly
   # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
-  FED_Soma:
+  fed_soma:
     api: fed
     api_args:
       symbol: "FED_Soma"
@@ -75,7 +75,7 @@ feeds:
   #  api_args:
   #    symbol: "VIX"
   #    source: "yahoo"
-  SPY:
+  spy:
     api: pdr
     api_args:
       symbol: "SPY"

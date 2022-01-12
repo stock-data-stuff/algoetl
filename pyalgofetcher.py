@@ -309,9 +309,8 @@ class Pyalgofetcher:
             if self.latest_selenium_login == feed_api:
                 logging.info("Re-using the web driver since the feed_api is the same.")
                 return self.our_web_driver
-            else:
-                logging.info("Destroying the web driver since the feed_api is not the same.")
-                self.cleanup_our_web_driver()
+            logging.info("Destroying the web driver since the feed_api is not the same.")
+            self.cleanup_our_web_driver()
 
         logging.info("Creating a new web driver")
 
