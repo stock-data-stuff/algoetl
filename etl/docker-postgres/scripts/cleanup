@@ -1,6 +1,6 @@
 docker-compose down --remove-orphans
 
-V="postgres_database-data"
+V="docker-postgres_database-data"
 if docker volume ls | grep $V; then
    docker volume rm $V
 fi
