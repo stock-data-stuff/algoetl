@@ -51,5 +51,5 @@ services:
 # the script ./create-feed-history-volume.sh
 volumes:
   feed_history:
-    name: ${FEED_HISTORY_VOLUME_ID}
+    name: feed_history
     external: true
