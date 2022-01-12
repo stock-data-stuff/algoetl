@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# Run from the dir with this script in it
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR
+
+start_up() {
+    ./scripts/start_up
+}
+
+show_status() {
+    ./scripts/show_status
+}
+
+login_to_container() {
+    ./scripts/login
+}
+
+test_cluster() {
+    ./scripts/test_cluster
+}
+
+cleanup() {
+    ./scripts/cleanup
+}
+
+
+check_requirements() {
+    if ! uname -a | egrep -i 'linux|cygwin'  2>/dev/null; then
+	echo "This has only been tested on Linux and Cygwin"
+	exit 1
+    fi
+}
+
+usage() {
+    echo "Usage: $0 OPTS"
+    echo "OPTS:"
+    echo " -u: Bring up (docker-compose up) services"
+    echo " -c: clean. Stop and remove container"
+    echo " -l: log into a cluster container"
+    echo " -s: show status"
+    echo " -t: test cluster"
+}
+
+if [ $# -eq 0 ]; then
+    echo "No arguments provided"
+    usage
+    exit 1
+fi
+
+check_requirements
+
+while getopts ":clstu" opt; do
+    case ${opt} in
+	c ) cleanup
+	    ;;
+	l ) login_to_container
+	    ;;
+	s ) show_status
+	    ;;
+	t ) test_cluster
+	    ;;
+	u ) start_up
+	    ;;
+	\? ) usage
+	;;
+    esac
+done
