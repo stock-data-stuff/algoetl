@@ -14,7 +14,7 @@ clean:
 
 clean-all: clean
 	$(info Clean all files)
-	sudo rm -rf ../../postgres-data
+	sudo rm -rf ../../postgres-data/*
 
 status:
 	$(info Show docker status)
