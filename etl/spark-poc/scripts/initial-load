@@ -13,8 +13,8 @@ run_script () {
 run_test_scripts () {
     #run_script "./test/test-spark-sql.py"
     run_script "./test/test-read-vix-data.py"
+    #run_script "./test/fails/test-read-sc-data.py"
 }
 
 
 run_test_scripts
-
