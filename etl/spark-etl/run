@@ -1,0 +1,101 @@
+#!/bin/bash
+
+#set -x
+
+function show_usage()
+{
+    printf "Usage: $0 <command>\n"
+    cat <<EOF
+    -l|--login
+    -u|--up
+    -d|--down
+    -c|--clean-all
+    -s|--status
+    -p|--pyspark
+    -h|--help
+EOF
+  exit 1
+}
+
+if [[ $# -lt 1 ]]; then
+    show_usage $@
+fi
+
+
+function docker_login()
+{
+    docker-compose exec spark-master bash
+}
+
+function docker_up()
+{
+    docker-compose up --detach
+}
+
+function docker_down()
+{
+    docker-compose down
+}
+
+function docker_clean_all()
+{
+    docker-compose rm -s -f
+}
+
+function docker_status()
+{
+    docker-compose ps -a
+}
+
+function docker_run_pyspark()
+{
+    docker-compose exec -w /spark spark-master ./bin/pyspark --conf spark.sql.catalogImplementation=hive
+}
+
+function docker_run_initial_load()
+{
+    docker-compose exec -w /scripts spark-master ./initial-load
+}
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+
+  case $key in
+    -l|--login)
+        shift
+        docker_login
+        ;;
+    -u|--up)
+        shift
+        docker_up
+        ;;
+    -d|--down)
+        shift
+        docker_down
+        ;;
+    -c|--clean-all)
+        shift
+        docker_clean_all
+        ;;
+    -s|--status)
+        shift
+        docker_status
+        ;;
+    -p|--pyspark)
+        shift
+        docker_run_pyspark
+        ;;
+    -i|--initial-load)
+        shift
+        docker_run_initial_load
+        ;;
+    -h|--help)
+        show_usage
+      ;;
+    *)    # unknown option
+      POSITIONAL+=("$1") # save it in an array for later
+      shift # past argument
+      ;;
+  esac
+done
+
