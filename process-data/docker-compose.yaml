@@ -10,12 +10,8 @@ services:
     environment:
       - INIT_DAEMON_STEP=setup_spark
     volumes:
-      - type: bind
-        source: ./spark/scripts
-        target: /scripts
-      - type: bind
-        source: ../feed-history
-        target: /feed_history
+      - ./spark/scripts:/scripts
+      - ../feed-history:/feed_history
 
   spark-worker-1:
     image: bde2020/spark-worker:3.2.0-hadoop3.2
@@ -27,9 +23,7 @@ services:
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
     volumes:
-      - type: bind
-        source: ../feed-history
-        target: /feed_history
+      - ../feed-history:/feed_history
 
   spark-worker-2:
     image: bde2020/spark-worker:3.2.0-hadoop3.2
@@ -41,9 +35,7 @@ services:
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
     volumes:
-      - type: bind
-        source: ../feed-history
-        target: /feed_history
+      - ../feed-history:/feed_history
 
   spark-history-server:
     image: bde2020/spark-history-server:3.2.0-hadoop3.2
