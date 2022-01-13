@@ -19,3 +19,5 @@ feed-history/
 **/derby.log
 **/metastore_db
 **/spark-warehouse
+
+**/pg_data

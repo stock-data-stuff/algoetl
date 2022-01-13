@@ -40,3 +40,9 @@ values (-2147483647, -12345678901234.1, -123456.789, 'varchar22', -9223372036854
 -- truncate table testschema.test_util;
 select count(*) as cnt from testschema.test_util;
 select * from testschema.test_util limit 10;
+
+-- Show schemas
+SELECT schema_name FROM information_schema.schemata;
+\dn
+
+
