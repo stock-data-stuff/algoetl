@@ -80,11 +80,11 @@ while [[ $# -gt 0 ]]; do
         shift
         docker_login_postgresql
         ;;
-    -u|--up)
+    -u|--docker-compose-up)
         shift
         docker_up
         ;;
-    -d|--down)
+    -d|--docker-compose-down)
         shift
         docker_down
         ;;
@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]]; do
         shift
         docker_status
         ;;
-    -p|--pyspark)
+    -p|--pyspark-shell)
         shift
         docker_run_pyspark
         ;;
