@@ -38,8 +38,8 @@ class Pyalgofetcher:
         self.override_file = cfg.override_file
         self.merged_file = cfg.merged_file
         logging.debug("config_file = %s", self.config_file)
-        logging.debug("override_file = %s", str(self.override_file))
-        logging.debug("merged_file = %s", str(self.merged_file))
+        logging.debug("override_file = %s", self.override_file)
+        logging.debug("merged_file = %s", self.merged_file)
         self.config_data = self.process_config_data()
 
         self.feed_name = cfg.feed  # Feed(s) to run
@@ -162,7 +162,7 @@ class Pyalgofetcher:
             logging.warning("Dataframe has no rows")
             return
         logging.info("Writing dataframe with rowcount: %s to file: %s",
-                     str(rowcount), abs_filename)
+                     rowcount, abs_filename)
         if self.output_format == "csv":
             csv_header = self.config_data['output_config']['file']['format_args']['header']
             if str(csv_header).lower() == 'false':
@@ -203,7 +203,7 @@ class Pyalgofetcher:
         """ Process data that is read via the pandas datareader API """
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
         args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(args))
+        logging.debug("API args: %s", args)
         symbol = args['symbol']
         source = args['source']
         start = datetime.datetime.fromisoformat(self.start_date)
@@ -213,7 +213,7 @@ class Pyalgofetcher:
         try:
             data_frame = web.DataReader(symbol, source, start, end)
         except KeyError as key_exception:
-            logging.error("No data found. Got KeyError: %s", str(key_exception))
+            logging.error("No data found. Got KeyError: %s", key_exception)
             logging.critical("No data found for feed: %s for range: %s to %s",
                              feed, self.start_date, self.end_date)
             sys.exit(1)
@@ -236,7 +236,7 @@ class Pyalgofetcher:
         """ Process data that is read from the New York Fed website (rest) API """
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
         args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(args))
+        logging.debug("API args: %s", args)
 
         # Construct the query URL
         product_code = args['productCode']
@@ -390,7 +390,7 @@ class Pyalgofetcher:
 
         # Get API args
         api_args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(api_args))
+        logging.debug("API args: %s", api_args)
 
         # Make the symbol uppercase since it will be used in the URL to pull data
         symbol = str(api_args['symbol']).upper()
@@ -510,7 +510,7 @@ class Pyalgofetcher:
     def process_feed(self, feed):
         """ Process the given feed """
         feed_cfg = self.config_data["feeds"][feed]
-        logging.debug("Feed cfg: %s", str(feed_cfg))
+        logging.debug("Feed cfg: %s", feed_cfg)
         feed_api = str(feed_cfg['api']).lower()
         if feed_api == 'pdr':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
@@ -538,7 +538,7 @@ class Pyalgofetcher:
         # Process the given feed, or ALL feeds.
         feeds = self.config_data['feeds']
         for feed in feeds:
-            logging.debug("Feed: %s", str(feed))
+            logging.debug("Feed: %s", feed)
             if self.feed_name in (feed, 'ALL'):
                 logging.debug("Processing feed with name: %s", feed)
                 self.process_feed(feed)
