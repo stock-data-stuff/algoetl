@@ -589,7 +589,7 @@ def read_cli_args():
     override_file = os.path.normpath(os.path.join(cur_dir, "overrides.yaml"))
     merged_file = os.path.normpath(os.path.join(cur_dir, ".effective-config.yaml"))
     # App specific
-    history_dir = os.path.normpath(os.path.join(cur_dir, "feed-history"))
+    history_dir = os.path.normpath(os.path.join(cur_dir, "..", "feed-history"))
     feed = 'ALL'
     start_date = '2017-01-31'
     end_date = '2018-01-31'

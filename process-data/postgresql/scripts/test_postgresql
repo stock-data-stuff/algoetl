@@ -4,7 +4,7 @@
 # It expects docker-compose to be configured.
 
 SCRIPT_DIR=$(cd `dirname $0` && pwd)
-source ${SCRIPT_DIR}/../database.env
+source ${SCRIPT_DIR}/../postgresql.env
 
 # Wait until the docker contain logs say the DB is up
 poll_log() {

@@ -1,4 +1,4 @@
-.PHONY=all clean clean-all login status pyspark up run
+.PHONY=all clean clean-all status up run
 
 # Force make to run targets sequentially
 .NOTPARALLEL:
@@ -12,11 +12,13 @@ clean:
 	$(info Clean)
 	./run -d
 
-# Remove Docker resources and Spark metastore & warehouse files
 clean-all:
 	$(info Clean All)
 	./run -c
-	cd ./scripts && rm -rf ./metastore_db ./derby.log ./spark-warehouse
+	echo "Remove Docker resources and Spark metastore & warehouse files"
+	cd ./spark/scripts && sudo rm -rf ./metastore_db ./derby.log ./spark-warehouse
+	echo "Remove Postgresql database files"
+	cd ./postgresql && sudo rm -rf ./postgres-data
 
 status:
 	$(info Show docker status)
@@ -25,17 +27,9 @@ status:
 up:
 	$(info Running docker-compose up)
 	./run -u
-
-login: up
-	$(info Log into master node)
-	./run -l
-
-pyspark: up
-	$(info Run Pyspark on master node)
-	./run -p
-
 run: up
 	$(info Run the initial load)
-	sleep 4
+	sleep 2
 	./run -i
+	./run --test-postgresql
 
