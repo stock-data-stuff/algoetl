@@ -21,6 +21,7 @@ from selenium.webdriver.firefox.options import Options
 
 
 def fed_date_parser(date_string):
+    """ Convert the date string for the FED data feed """
     try:
         ret = datetime.datetime.strptime(date_string, '%Y-%m-%d')
     except pd.errors.ParserError as parse_error:
@@ -30,6 +31,7 @@ def fed_date_parser(date_string):
 
 
 def stock_charts_date_parser(date_string):
+    """ Convert the date string for the STOCK CHART data feed """
     try:
         ret = datetime.datetime.strptime(date_string, '%m/%d/%Y')
     except pd.errors.ParserError as parse_error:
