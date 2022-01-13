@@ -20,18 +20,18 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 
 
-def fed_date_parser(s):
+def fed_date_parser(date_string):
     try:
-        ret = datetime.datetime.strptime(s, '%Y-%m-%d')
+        ret = datetime.datetime.strptime(date_string, '%Y-%m-%d')
     except pd.errors.ParserError as parse_error:
         logging.error('Can not read the Fed data at all. Error: %s', parse_error)
         sys.exit(1)
     return ret
 
 
-def stock_charts_date_parser(s):
+def stock_charts_date_parser(date_string):
     try:
-        ret = datetime.datetime.strptime(s, '%m/%d/%Y')
+        ret = datetime.datetime.strptime(date_string, '%m/%d/%Y')
     except pd.errors.ParserError as parse_error:
         logging.error('Can not read the Fed data at all. Error: %s', parse_error)
         sys.exit(1)
