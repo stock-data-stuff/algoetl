@@ -4,3 +4,9 @@ selenium
 pandas
 tqdm
 pyflakes
+
+# For processing the data (we share this virtual env)
+pyspark
+sqlalchemy
+# psycopg2-binary  # Not used yet
+

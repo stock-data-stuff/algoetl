@@ -1,7 +1,7 @@
 """ Test that Spark SQL can read a directory of JSON files """
-# Note: this does not name the columns
 
-import pyspark
+# import pyspark
+from pyspark.sql import SparkSession
 
 
 def main():
@@ -13,29 +13,27 @@ def main():
     loc = '/feed_history/sc/vix/'
 
     # Initialize a spark context
-    app_name = 'feed-history-ddl'
-    spark_cluster = "local"
-    with pyspark.SparkContext(spark_cluster, app_name) as sc:
-        # Create the Spark SQL Context
-        ssc = pyspark.sql.SQLContext(sc)
-        # For local dev in spark shell
-        # ssc = SparkSession.builder.getOrCreate()
+    app_name = 'test-read-vix-data'
 
-        sql = "drop table if exists " + tbl
-        ssc.sql(sql)
+    # "CREATE TABLE" syntax requires Hive Support
+    s = SparkSession.builder\
+        .enableHiveSupport()\
+        .appName(app_name)\
+        .getOrCreate()
 
-        sql = "create table if not exists " + tbl + " using json" + " location '" + loc + "'"
-        ssc.sql(sql)
+    sql = "drop table if exists " + tbl
+    s.sql(sql)
 
-        sql = "select * from " + tbl
-        df = ssc.sql(sql)
-        df.show()
+    sql = "create table if not exists " + tbl + " using json" + " location '" + loc + "'"
+    s.sql(sql)
 
-        # Yes, fluent API works
-        ssc.sql("select count(*) as cnt from stg_vix").show()
+    sql = "select * from " + tbl
+    df = s.sql(sql)
+    df.show()
 
-        # sql = "drop table " + tbl
-        # ssc.sql(sql)
+    # Yes, fluent API works
+    s.sql("select count(*) as cnt from %s" % tbl).show()
+
     print("Done")
 
 

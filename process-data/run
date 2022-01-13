@@ -7,7 +7,7 @@ function show_usage()
     -u|--docker-compose-up
     -d|--docker-compose-down
     -c|--clean-all
-    -i|--initial-load-spark-job
+    -i|--run-test-scripts-in-spark
     -g|--run-setup-postgresql
     -s|--status
     -p|--pyspark-shell
@@ -58,9 +58,9 @@ function docker_run_pyspark()
     docker-compose exec -w /spark spark-master ./bin/pyspark --conf spark.sql.catalogImplementation=hive
 }
 
-function docker_run_initial_load()
+function run_test_scripts_in_spark()
 {
-    docker-compose exec -w /scripts spark-master ./initial-load
+    docker-compose exec -w /scripts spark-master ./run-test-scripts
 }
 
 function setup_postgresql()
@@ -100,9 +100,9 @@ while [[ $# -gt 0 ]]; do
         shift
         docker_run_pyspark
         ;;
-    -i|--initial-load)
+    -i|--run-test-scripts)
         shift
-        docker_run_initial_load
+        run_test_scripts_in_spark
         ;;
     -g|--run-setup-postgresql)
         shift
