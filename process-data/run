@@ -1,17 +1,17 @@
 #!/bin/bash
 
-#set -x
-
 function show_usage()
 {
     printf "Usage: $0 <command>\n"
     cat <<EOF
-    -l|--login
     -u|--up
     -d|--down
     -c|--clean-all
     -s|--status
     -p|--pyspark
+    -t|--test-postgresql
+    -P|--login-postgresql
+    -S|--login-spark
     -h|--help
 EOF
   exit 1
@@ -21,8 +21,12 @@ if [[ $# -lt 1 ]]; then
     show_usage $@
 fi
 
+function docker_login_postgresql()
+{
+    docker-compose exec postgresdb bash
+}
 
-function docker_login()
+function docker_login_spark()
 {
     docker-compose exec spark-master bash
 }
@@ -45,6 +49,7 @@ function docker_clean_all()
 function docker_status()
 {
     docker-compose ps -a
+    docker-compose logs postgresdb | tail -10
 }
 
 function docker_run_pyspark()
@@ -57,13 +62,22 @@ function docker_run_initial_load()
     docker-compose exec -w /scripts spark-master ./initial-load
 }
 
+function test_postgresql()
+{
+    ./postgresql/scripts/test_postgresql
+}
+
 while [[ $# -gt 0 ]]; do
   key="$1"
 
   case $key in
-    -l|--login)
+    -S|--login-spark)
         shift
-        docker_login
+        docker_login_spark
+        ;;
+    -P|--login-postgresql)
+        shift
+        docker_login_postgresql
         ;;
     -u|--up)
         shift
@@ -88,6 +102,10 @@ while [[ $# -gt 0 ]]; do
     -i|--initial-load)
         shift
         docker_run_initial_load
+        ;;
+    -t|--test-postgresql)
+        shift
+        test_postgresql
         ;;
     -h|--help)
         show_usage

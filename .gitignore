@@ -1,13 +1,21 @@
 
-**/.venv
+**/*~
+**/*#
+
+**/tmp
+**/*.log
+
+**/*.iml
+**/*.idea
+
 **/.env
-feed-history/
+
 feed-history
+feed-history/
 
-overrides.yaml
-.effective-config.yaml
+**/overrides.yaml
+**/.effective-config.yaml
 
-*.log
-
-# Download files here
-tmp
+**/derby.log
+**/metastore_db
+**/spark-warehouse

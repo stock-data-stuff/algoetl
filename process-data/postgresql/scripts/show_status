@@ -1,0 +1,4 @@
+
+echo "Show running containers"
+docker-compose ps
+docker-compose logs postgresdb | tail -10

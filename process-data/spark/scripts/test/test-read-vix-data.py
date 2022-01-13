@@ -10,7 +10,7 @@ def main():
     # Create this table
     tbl = 'stg_vix'
     # Use the JSON files found in this directory
-    loc = '/var/lib/feed_history/sc/VIX_from_sc/'
+    loc = '/feed_history/sc/vix/'
 
     # Initialize a spark context
     app_name = 'feed-history-ddl'

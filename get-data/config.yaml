@@ -32,50 +32,49 @@ feeds:
   # It seems ok to just mimic what a person could do.
   # But, slow the program down to about human 'web-traversal' speed.
   # We don't want to be a burden on the site.
-  VIX_from_sc:         # feeds[KEY] is used to name the directory and file with the data
+  vix:         # feeds[KEY] is used to name the directory and file with the data
     api: sc
     api_args:
       symbol: '$VIX'
       #symbol: 'VIX'    # 'symbol' is used to construct the URL to fetch the data
   # These work
-  IBM:
+  ibm:
     api: sc
     api_args:
       symbol: IBM
-  AAPL:
+  aapl:
     api: sc
     api_args:
       symbol: AAPL
 
-  # WTF ... As of 2022-01-07, this feed is not working properly
   # API docs: https://apps.newyorkfed.org/~/media/XML/Schemas/api_spec
-  FED_Soma:
-    api: fed
-    api_args:
-      symbol: "FED_Soma"
-      productCode: "30"
-      query: "details"
-      holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
-      format: "csv"
   #
-  #  # TODO: Somehow deal with the fact that this API is fragile.
-  #  # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
-  #  # FAIL
-  #  #  ./pyalgofetcher.py -f FED_Soma -s 1990-11-01 -e 1990-12-31 -d /tmp
-  #  # SUCCEED
-  #  # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
+  # This feed/API is flaky... it fails randomly. Commenting it out for now
+  # TODO: add metadata so that this can be skipped unless invoked specifically
+  #
+  #fed_soma:
+  #  api: fed
+  #  api_args:
+  #    symbol: "FED_Soma"
+  #    productCode: "30"
+  #    query: "details"
+  #    holdingTypes: "bills,notesbonds,frn,tips,cmbs,agency%20debts"
+  #    format: "csv"
+  #
+  # TODO: Somehow deal with the fact that this API is fragile.
+  # It always seems to succeed if a year of data is pulled, but often fails if fewer days are pulled
+  # FAIL
+  #  ./pyalgofetcher.py -f FED_Soma -s 1990-11-01 -e 1990-12-31 -d /tmp
+  # SUCCEED
+  # ./pyalgofetcher.py -f FED_Soma -s 1990-01-01 -e 1991-01-01 -d /tmp
 
 
-  # WTF ... as of 2022-01-05, this is not returning dates
-  # API docs: https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#yahoo-finance-data
-  #
-  #
-  #VIX: # Seems to only have data from 2014-12-04 and 2018-01-31, and even then, some days are missing.
+  #VIX: # Seems to only have data from 2014-12-04 and 2018-01-31
   #  api: pdr
   #  api_args:
   #    symbol: "VIX"
   #    source: "yahoo"
-  SPY:
+  spy:
     api: pdr
     api_args:
       symbol: "SPY"
