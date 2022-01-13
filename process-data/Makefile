@@ -3,7 +3,7 @@
 # Force make to run targets sequentially
 .NOTPARALLEL:
 
-# Directory containing this makefile. Includes trailing /
+# Directory containing this makefile. Includes trailing slash
 MAKEFILE_PATH=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 all: run
