@@ -94,9 +94,9 @@ class Pyalgofetcher:
         # Create the temp dir if it does not exist. Clean it up otherwise.
         if os.path.exists(self.temp_dir):
             logging.info("Temp dir exists: %s", self.temp_dir)
-            for file in os.scandir(self.temp_dir):
-                if os.path.isfile(file.path):
-                    os.remove(file.path)
+            for entry in os.scandir(self.temp_dir):
+                if entry.is_file():
+                    os.remove(Path(entry))
             size = len(os.listdir(self.temp_dir))
             if size > 0:
                 logging.error("There should not be any files in temp dir %s",
