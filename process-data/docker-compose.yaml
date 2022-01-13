@@ -53,13 +53,15 @@ services:
     ports:
       - "18081:18081"
 
+  # Use the latest Debian-based image
+  # It's bigger, but lets us install common tools
   postgresdb:
-    image: "postgres"  # use latest official postgres version
+    image: "postgres:bullseye"
     env_file:
-      - ./postgresql/postgresql.env  # configure postgres
+      - ./postgresql/postgresql.env
     volumes:
-      - ./postgresql/postgres-data:/var/lib/postgresql/data/
-      - ./postgresql/scripts:/shared/scripts:rw
+      - ./postgresql/pg_data:/var/lib/postgresql/data/
+      - ./postgresql/scripts:/scripts:rw
     ports:
       - 5432:5432
     healthcheck:

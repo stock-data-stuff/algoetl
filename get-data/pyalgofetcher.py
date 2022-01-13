@@ -20,6 +20,26 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 
 
+def fed_date_parser(date_string):
+    """ Convert the date string for the FED data feed """
+    try:
+        ret = datetime.datetime.strptime(date_string, '%Y-%m-%d')
+    except pd.errors.ParserError as parse_error:
+        logging.error('Can not read the Fed data at all. Error: %s', parse_error)
+        sys.exit(1)
+    return ret
+
+
+def stock_charts_date_parser(date_string):
+    """ Convert the date string for the STOCK CHART data feed """
+    try:
+        ret = datetime.datetime.strptime(date_string, '%m/%d/%Y')
+    except pd.errors.ParserError as parse_error:
+        logging.error('Can not read the Fed data at all. Error: %s', parse_error)
+        sys.exit(1)
+    return ret
+
+
 class Pyalgofetcher:
     """ This class does all the work."""
 
@@ -38,8 +58,8 @@ class Pyalgofetcher:
         self.override_file = cfg.override_file
         self.merged_file = cfg.merged_file
         logging.debug("config_file = %s", self.config_file)
-        logging.debug("override_file = %s", str(self.override_file))
-        logging.debug("merged_file = %s", str(self.merged_file))
+        logging.debug("override_file = %s", self.override_file)
+        logging.debug("merged_file = %s", self.merged_file)
         self.config_data = self.process_config_data()
 
         self.feed_name = cfg.feed  # Feed(s) to run
@@ -94,9 +114,10 @@ class Pyalgofetcher:
         # Create the temp dir if it does not exist. Clean it up otherwise.
         if os.path.exists(self.temp_dir):
             logging.info("Temp dir exists: %s", self.temp_dir)
-            for file in os.scandir(self.temp_dir):
-                if os.path.isfile(file.path):
-                    os.remove(file.path)
+            with os.scandir(self.temp_dir) as scan_itr:
+                for entry in scan_itr:
+                    if entry.is_file():
+                        os.remove(str(entry))
             size = len(os.listdir(self.temp_dir))
             if size > 0:
                 logging.error("There should not be any files in temp dir %s",
@@ -162,7 +183,7 @@ class Pyalgofetcher:
             logging.warning("Dataframe has no rows")
             return
         logging.info("Writing dataframe with rowcount: %s to file: %s",
-                     str(rowcount), abs_filename)
+                     rowcount, abs_filename)
         if self.output_format == "csv":
             csv_header = self.config_data['output_config']['file']['format_args']['header']
             if str(csv_header).lower() == 'false':
@@ -203,7 +224,7 @@ class Pyalgofetcher:
         """ Process data that is read via the pandas datareader API """
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
         args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(args))
+        logging.debug("API args: %s", args)
         symbol = args['symbol']
         source = args['source']
         start = datetime.datetime.fromisoformat(self.start_date)
@@ -213,7 +234,7 @@ class Pyalgofetcher:
         try:
             data_frame = web.DataReader(symbol, source, start, end)
         except KeyError as key_exception:
-            logging.error("No data found. Got KeyError: %s", str(key_exception))
+            logging.error("No data found. Got KeyError: %s", key_exception)
             logging.critical("No data found for feed: %s for range: %s to %s",
                              feed, self.start_date, self.end_date)
             sys.exit(1)
@@ -236,7 +257,7 @@ class Pyalgofetcher:
         """ Process data that is read from the New York Fed website (rest) API """
         logging.info("Loading feed with api: " + feed_api + " feed:" + feed)
         args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(args))
+        logging.debug("API args: %s", args)
 
         # Construct the query URL
         product_code = args['productCode']
@@ -250,13 +271,9 @@ class Pyalgofetcher:
         logging.info("Get data from the FED, while fixing date fields, at: %s", url)
 
         try:
-            fed_date_parser = lambda s: datetime.datetime.strptime(s, '%Y-%m-%d')
             data_frame = pd.read_csv(url,
                                      parse_dates=['As Of Date', 'Maturity Date'],
                                      date_parser=fed_date_parser)
-        except pd.errors.ParserError as parse_error:
-            logging.error('Can not read the Fed data at all. Error: %s', parse_error)
-            sys.exit(1)
         except TypeError as type_error:
             logging.error('Type Error: %s', type_error)
             logging.error('This happens seemingly at random. JUST RUN THE PROGRAM AGAIN')
@@ -354,12 +371,11 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(self.temp_dir, rel_filename))
         # Read the CSV file and skip the metadata line before the header
         # Make the date fields actual Date types
-        stockcharts_date_parser = lambda s: datetime.datetime.strptime(s, '%m/%d/%Y')
         # The column names have leading spaces, just skip that silly header row
         data_frame = pd.read_csv(abs_filename,
                                  skiprows=1,
                                  parse_dates=['      Date'],
-                                 date_parser=stockcharts_date_parser)
+                                 date_parser=stock_charts_date_parser)
         # Remove the downloaded file from the temp dir
         if os.path.isfile(abs_filename):
             os.remove(abs_filename)
@@ -390,7 +406,7 @@ class Pyalgofetcher:
 
         # Get API args
         api_args = self.config_data['feeds'][feed]['api_args']
-        logging.debug("API args: %s", str(api_args))
+        logging.debug("API args: %s", api_args)
 
         # Make the symbol uppercase since it will be used in the URL to pull data
         symbol = str(api_args['symbol']).upper()
@@ -510,7 +526,7 @@ class Pyalgofetcher:
     def process_feed(self, feed):
         """ Process the given feed """
         feed_cfg = self.config_data["feeds"][feed]
-        logging.debug("Feed cfg: %s", str(feed_cfg))
+        logging.debug("Feed cfg: %s", feed_cfg)
         feed_api = str(feed_cfg['api']).lower()
         if feed_api == 'pdr':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
@@ -521,9 +537,6 @@ class Pyalgofetcher:
         elif feed_api == 'sc':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_stockcharts_feed(feed, feed_dir, feed_api)
-        elif feed_api == 'whysper':
-            feed_dir = self.create_feed_api_dir(feed, feed_api)
-            self.process_whysper_feed(feed, feed_dir, feed_api)
         else:
             logging.critical("Feed: %s has an invalid api: %s", feed, feed_api)
             sys.exit(1)
@@ -538,7 +551,7 @@ class Pyalgofetcher:
         # Process the given feed, or ALL feeds.
         feeds = self.config_data['feeds']
         for feed in feeds:
-            logging.debug("Feed: %s", str(feed))
+            logging.debug("Feed: %s", feed)
             if self.feed_name in (feed, 'ALL'):
                 logging.debug("Processing feed with name: %s", feed)
                 self.process_feed(feed)

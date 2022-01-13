@@ -10,26 +10,26 @@ all: run
 
 clean:
 	$(info Clean)
-	./run -d
+	./run --docker-compose-down
 
 clean-all:
 	$(info Clean All)
-	./run -c
+	./run --clean-all
 	echo "Remove Docker resources and Spark metastore & warehouse files"
 	cd ./spark/scripts && sudo rm -rf ./metastore_db ./derby.log ./spark-warehouse
 	echo "Remove Postgresql database files"
-	cd ./postgresql && sudo rm -rf ./postgres-data
+	cd ./postgresql && sudo rm -rf ./pg_data
 
 status:
 	$(info Show docker status)
-	./run -s
+	./run --status
 
 up:
 	$(info Running docker-compose up)
-	./run -u
+	./run --docker-compose-up
 run: up
 	$(info Run the initial load)
 	sleep 2
-	./run -i
-	./run --test-postgresql
+	./run --initial-load-spark-job
+	./run --run-setup-postgresql
 

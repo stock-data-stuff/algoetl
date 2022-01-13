@@ -6,21 +6,6 @@
 SCRIPT_DIR=$(cd `dirname $0` && pwd)
 source ${SCRIPT_DIR}/../postgresql.env
 
-# Wait until the docker contain logs say the DB is up
-poll_log() {
-  READY="database system is ready to accept connections"
-  for i in {1..60}; do
-    if docker-compose logs postgresdb | grep "$READY" >/dev/null; then
-      echo "DB logs report it is ready"
-     return
-    fi
-    sleep 1
-    echo "Loop $i"
-  done
-  echo "ERROR: Log file Check failed"
-  exit 1
-}
-
 # Wait until the postgres "pg_isready" command says the DB allowed a particular user to connect
 check_isready() {
   for i in {1..50}; do
@@ -34,7 +19,6 @@ check_isready() {
   exit 1
 }
 
-#poll_log # Leave this in until we are sure pg_isready is reliable
 check_isready
 
-docker-compose exec postgresdb bash -c "cd /shared/scripts && ./test_cluster.sh"
+docker-compose exec postgresdb bash -c "cd /scripts && ./run-setup-from-within-container.sh"

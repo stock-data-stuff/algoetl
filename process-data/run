@@ -4,14 +4,15 @@ function show_usage()
 {
     printf "Usage: $0 <command>\n"
     cat <<EOF
-    -u|--up
-    -d|--down
+    -u|--docker-compose-up
+    -d|--docker-compose-down
     -c|--clean-all
+    -i|--initial-load-spark-job
+    -g|--run-setup-postgresql
     -s|--status
-    -p|--pyspark
-    -t|--test-postgresql
-    -P|--login-postgresql
-    -S|--login-spark
+    -p|--pyspark-shell
+    -P|--login-to-postgresql
+    -S|--login-to-spark
     -h|--help
 EOF
   exit 1
@@ -62,9 +63,9 @@ function docker_run_initial_load()
     docker-compose exec -w /scripts spark-master ./initial-load
 }
 
-function test_postgresql()
+function setup_postgresql()
 {
-    ./postgresql/scripts/test_postgresql
+    ./postgresql/scripts/run-setup-from-outside-container.sh
 }
 
 while [[ $# -gt 0 ]]; do
@@ -103,9 +104,9 @@ while [[ $# -gt 0 ]]; do
         shift
         docker_run_initial_load
         ;;
-    -t|--test-postgresql)
+    -g|--run-setup-postgresql)
         shift
-        test_postgresql
+        setup_postgresql
         ;;
     -h|--help)
         show_usage
@@ -116,4 +117,3 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-

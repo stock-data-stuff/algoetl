@@ -4,20 +4,16 @@
 
 SCRIPT_DIR=$(cd `dirname $0` && pwd)
 
-# Set $POSTGRES_DB, $POSTGRES_USER, and $POSTGRES_DB
-source ${SCRIPT_DIR}/../database.env
-
 cd ${SCRIPT_DIR}
 
-HOST=localhost
-PORT=5432
+# These are set by the Docker environment variable setup
+# $POSTGRES_DB:$POSTGRES_USER:$POSTGRES_DB
 
 DIR_IN_PATH=/usr/local/bin
 PSQL=${DIR_IN_PATH}/psql2
 
 setup_psql() {
-    source /shared/database.env
-    echo "$HOST:$PORT:$POSTGRES_DB:$POSTGRES_USER:$POSTGRES_DB" > ~/.pgpass
+    echo "localhost:5432:$POSTGRES_DB:$POSTGRES_USER:$POSTGRES_DB" > ~/.pgpass
     chmod 700 ~/.pgpass
 
     # The above will allow this to work without a password
@@ -30,7 +26,7 @@ setup_psql() {
 }
 
 run_sql_scripts() {
-    for i in $(ls -1 ./*create*.sql); do
+    for i in $(ls -1 ./setup/*.sql); do
 	echo "run $i"
 	cat $i | $PSQL
     done
