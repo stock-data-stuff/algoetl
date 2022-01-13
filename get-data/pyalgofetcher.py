@@ -20,6 +20,24 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 
 
+def fed_date_parser(s):
+    try:
+        ret = datetime.datetime.strptime(s, '%Y-%m-%d')
+    except pd.errors.ParserError as parse_error:
+        logging.error('Can not read the Fed data at all. Error: %s', parse_error)
+        sys.exit(1)
+    return ret
+
+
+def stock_charts_date_parser(s):
+    try:
+        ret = datetime.datetime.strptime(s, '%m/%d/%Y')
+    except pd.errors.ParserError as parse_error:
+        logging.error('Can not read the Fed data at all. Error: %s', parse_error)
+        sys.exit(1)
+    return ret
+
+
 class Pyalgofetcher:
     """ This class does all the work."""
 
@@ -94,9 +112,10 @@ class Pyalgofetcher:
         # Create the temp dir if it does not exist. Clean it up otherwise.
         if os.path.exists(self.temp_dir):
             logging.info("Temp dir exists: %s", self.temp_dir)
-            for entry in os.scandir(self.temp_dir):
-                if entry.is_file():
-                    os.remove(Path(entry))
+            with os.scandir(self.temp_dir) as scan_itr:
+                for entry in scan_itr:
+                    if entry.is_file():
+                        os.remove(str(entry))
             size = len(os.listdir(self.temp_dir))
             if size > 0:
                 logging.error("There should not be any files in temp dir %s",
@@ -250,13 +269,9 @@ class Pyalgofetcher:
         logging.info("Get data from the FED, while fixing date fields, at: %s", url)
 
         try:
-            fed_date_parser = lambda s: datetime.datetime.strptime(s, '%Y-%m-%d')
             data_frame = pd.read_csv(url,
                                      parse_dates=['As Of Date', 'Maturity Date'],
                                      date_parser=fed_date_parser)
-        except pd.errors.ParserError as parse_error:
-            logging.error('Can not read the Fed data at all. Error: %s', parse_error)
-            sys.exit(1)
         except TypeError as type_error:
             logging.error('Type Error: %s', type_error)
             logging.error('This happens seemingly at random. JUST RUN THE PROGRAM AGAIN')
@@ -354,12 +369,11 @@ class Pyalgofetcher:
         abs_filename = os.path.normpath(os.path.join(self.temp_dir, rel_filename))
         # Read the CSV file and skip the metadata line before the header
         # Make the date fields actual Date types
-        stockcharts_date_parser = lambda s: datetime.datetime.strptime(s, '%m/%d/%Y')
         # The column names have leading spaces, just skip that silly header row
         data_frame = pd.read_csv(abs_filename,
                                  skiprows=1,
                                  parse_dates=['      Date'],
-                                 date_parser=stockcharts_date_parser)
+                                 date_parser=stock_charts_date_parser)
         # Remove the downloaded file from the temp dir
         if os.path.isfile(abs_filename):
             os.remove(abs_filename)
@@ -521,9 +535,6 @@ class Pyalgofetcher:
         elif feed_api == 'sc':
             feed_dir = self.create_feed_api_dir(feed, feed_api)
             self.process_stockcharts_feed(feed, feed_dir, feed_api)
-        elif feed_api == 'whysper':
-            feed_dir = self.create_feed_api_dir(feed, feed_api)
-            self.process_whysper_feed(feed, feed_dir, feed_api)
         else:
             logging.critical("Feed: %s has an invalid api: %s", feed, feed_api)
             sys.exit(1)
