@@ -598,9 +598,9 @@ def read_cli_args():
     log_level = "DEBUG"
     # Config file
     cur_dir = os.getcwd()
-    config_file = os.path.normpath(os.path.join(cur_dir, "config.yaml"))
-    override_file = os.path.normpath(os.path.join(cur_dir, "overrides.yaml"))
-    merged_file = os.path.normpath(os.path.join(cur_dir, ".effective-config.yaml"))
+    config_file = os.path.normpath(os.path.join(cur_dir, "..", "config.yaml"))
+    override_file = os.path.normpath(os.path.join(cur_dir, "..", "overrides.yaml"))
+    merged_file = os.path.normpath(os.path.join(cur_dir, "..", ".effective-config.yaml"))
     # App specific
     history_dir = os.path.normpath(os.path.join(cur_dir, "..", "feed-history"))
     feed = 'ALL'
