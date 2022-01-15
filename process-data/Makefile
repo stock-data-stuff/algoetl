@@ -17,6 +17,7 @@ clean-all:
 	./run --clean-all
 	echo "Remove Docker resources and Spark metastore & warehouse files"
 	cd ./spark/scripts/test && sudo rm -rf ./metastore_db ./derby.log ./spark-warehouse
+	cd ./spark/scripts && sudo rm -rf ./metastore_db ./derby.log ./spark-warehouse
 	echo "Remove Postgresql database files"
 	cd ./postgresql && sudo rm -rf ./pg_data
 
@@ -37,6 +38,3 @@ run-postgresql: up
 	./run -g
 
 run: run-spark run-postgresql
-
-
-
