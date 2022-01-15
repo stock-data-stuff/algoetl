@@ -1,4 +1,4 @@
-""" Test: Connecting directly to Postgresql, and Spark interoperabilty """
+""" Test: Connecting directly to Postgresql, and integration with Spark """
 
 # import psycopg2
 import pandas as pd
