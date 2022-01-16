@@ -6,10 +6,10 @@ import glob
 import sys
 import argparse
 import logging
-import datetime
 from pathlib import Path
 import yaml
 import pandas as pd
+from sqlalchemy import create_engine
 
 
 class Dataloader:
@@ -25,7 +25,7 @@ class Dataloader:
         logging.debug("config_file = %s", self.config_file)
         logging.debug("override_file = %s", self.override_file)
         logging.debug("merged_file = %s", self.merged_file)
-        self.config_data = self.process_config_data()
+        self.config_data = self.read_config_data()
 
         self.history_dir = cfg.history_dir
         logging.debug("history_dir = %s", self.history_dir)
@@ -34,16 +34,46 @@ class Dataloader:
             logging.error("Feed history directory is missing :%s",
                           self.history_dir)
 
-        # start and end of processing
-        # self.start_date = cfg.start_date
-        # self.end_date = cfg.end_date
+        # Database connection
+        self.sqlalchemy_engine = None
+        db_cfg = self.config_data['credentials']['database']
+        db_type = db_cfg['db_type']
+        if db_type == 'postgresql':
+            logging.info("Connecting to postgresql")
+            args = db_cfg['postgresql_args']
+            db_host = args['db_host']
+            db_port = args['db_port']
+            db_user = args['db_user']
+            db_password = args['db_password']
+            db_database_name = args['db_database_name']
+            conn_str = 'postgresql://' + db_user \
+                       + ':' + str(db_password) \
+                       + '@' + str(db_host) \
+                       + ':' + str(db_port) \
+                       + '/' + db_database_name \
+                       + '?client_encoding=utf8'
+            engine = create_engine(conn_str)
+            self.sqlalchemy_engine = engine
+            #
+            # Schemas. # Used in full/3-part table name
+            self.schema_stage = args['schema_stage']
+            self.schema_production = args['schema_production']
+            self.schema_report = args['schema_report']
+        if self.sqlalchemy_engine is None:
+            logging.error("Database connection failed")
+            sys.exit(1)
 
-    def process_config_data(self):
-        """ Read the config file, and the override file if it exists,
-        and store the merged result in self.config_data.
-        Also, write the result to the merge file if one is given.
-        """
-        # Read config data
+        # Initialize schemas
+        for schema in [self.schema_stage, self.schema_production, self.schema_report]:
+            sql = "CREATE SCHEMA IF NOT EXISTS %s" %  schema
+            self.sqlalchemy_engine.execute(sql)
+
+        # Build up this list as we read in stage tables
+        self.feed_tables = []
+
+    def read_config_data(self):
+        """ Read the configuration and override files """
+
         if os.path.isfile(self.config_file):
             logging.debug("Using Config file: %s", self.config_file)
             with open(self.config_file, 'r', encoding="utf8") as stream:
@@ -69,7 +99,7 @@ class Dataloader:
 
         logging.debug("Applying override_file_data: %s", override_file_data)
         if override_file_data is not None:
-            config_data = merge(orig_config_data, override_file_data)
+            config_data = merge_dicts(orig_config_data, override_file_data)
 
         # Store the resulting merged data to a file (if given a 'merged_file')
         # This is for debugging. So the user can see the effective config data easily.
@@ -120,40 +150,78 @@ class Dataloader:
                              self.output_format)
             sys.exit(1)
 
+    def get_pdf_from_json_dir(self, json_dir):
+        """ Return a Pandas Data Frame using all JSON files in the given dir """
+        file_list = [x for x in os.listdir(json_dir) if x.endswith("json")]
+        dfs = []  # an empty list to store the data frames
+        for rel_filename in file_list:
+            abs_filename = os.path.join(json_dir, rel_filename)
+            data = pd.read_json(abs_filename, lines=True)  # read data frame from json file
+            dfs.append(data)  # append the data frame to the list
+        pdf = pd.concat(dfs, ignore_index=True)  # concatenate all the data frames in the list.
+        logging.debug("DataFrame size: %d", pdf.size)
+        return pdf
+
+    def recreate_db_table_from_pdf(self, pdf, table_name, schema_name):
+        """ Create a database table from the given Pandas DataFrame """
+        sql = "DROP TABLE IF EXISTS {0}.{1}".\
+            format(schema_name, table_name)
+        self.sqlalchemy_engine.execute(sql)
+
+        logging.debug("Create DB table: %s", table_name)
+        pdf.to_sql(table_name, self.sqlalchemy_engine, schema=schema_name)
+
+    def create_table_from_feed_dir(self, feed_dir, table_name, schema_name):
+        """ Process the files in the feed dir
+         feed_dir:
+           Path to a directory of JSON files to process
+         table_name:
+           Name of the table to create
+        """
+        logging.info("Processing feed_dir=%s, table_name=%s, schema_name=%s",
+                     feed_dir, table_name, schema_name)
+        pdf = self.get_pdf_from_json_dir(feed_dir)
+        self.recreate_db_table_from_pdf(pdf, table_name, schema_name)
+        self.feed_tables.append(table_name)  # Remember the table names so we can unite them later
+
     def run(self):
         """ Main loop for the code """
         # Loop through the different APIs in the feed history folder
         glob_pattern = os.path.join(self.history_dir, '*')
         api_dirs = glob.glob(glob_pattern)
         for api_dir in api_dirs:
+            # Infer the API from the dir
+            api = os.path.basename(api_dir).lower()
             if os.path.isdir(api_dir):
                 logging.debug("Found API dir: %s", api_dir)
                 feed_dir_pattern = os.path.join(api_dir, '*')
                 feed_dirs = glob.glob(feed_dir_pattern)
                 for feed_dir in feed_dirs:
                     logging.debug("Found feed dir: %s", feed_dir)
+                    # Infer the Symbol from the dir
+                    table_name = os.path.basename(feed_dir).lower()
+                    self.create_table_from_feed_dir(feed_dir, table_name, self.schema_stage)
+        # Write the table to a (CSV) file for Excel
+        # self.write_df()
         logging.info("Successfully terminating program")
 
 
-def merge(dict_a, dict_b, path=None, update=True):
-    """ Merge 'b' into 'a'
-        https://stackoverflow.com/questions/7204805/dictionaries-of-dictionaries-merge
-    """
-    # print("\nMerging: a=" + str(a) + " b=" + str(b) + " path=" + str(path) )
+def merge_dicts(dict_a, dict_b, path=None, update=True):
+    """ Merge dictionary 'b' into dictionary 'a' """
     if path is None:
         path = []
     for key in dict_b:
         if key in dict_a:
             if isinstance(dict_a[key], dict) and isinstance(dict_b[key], dict):
-                merge(dict_a[key], dict_b[key], path + [str(key)])
+                merge_dicts(dict_a[key], dict_b[key], path + [str(key)])
             elif dict_a[key] == dict_b[key]:
                 pass  # same leaf value
             elif isinstance(dict_a[key], list) and isinstance(dict_b[key], list):
                 for idx in enumerate(dict_b[key]):
-                    dict_a[key][idx] = merge(dict_a[key][idx],
-                                             dict_b[key][idx],
-                                             path + [str(key), str(idx)],
-                                             update=update)
+                    dict_a[key][idx] = merge_dicts(dict_a[key][idx],
+                                                   dict_b[key][idx],
+                                                   path + [str(key), str(idx)],
+                                                   update=update)
             elif update:
                 dict_a[key] = dict_b[key]
             else:
@@ -232,5 +300,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

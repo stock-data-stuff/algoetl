@@ -80,6 +80,15 @@ feeds:
       symbol: "SPY"
       source: "yahoo"
 
+# TODO: consider driving the ETL from this
+#
+# etl:
+#   schema:
+#    api:
+#      sc:
+#      fed:
+#      pdr:
+
 
 # Do not put private information in this file!
 # Copy this section into a file ./overrides.yaml and set the parameters there.
@@ -91,4 +100,16 @@ credentials:
     sc:
       username: username-override-me
       password: password-override-me
-
+  # The DB is local, but if we use a remote DB, put those credentials in the override.yaml file.
+  database:
+    db_type: postgresql
+    postgresql_args:
+      db_host: localhost
+      db_port: 5432
+      db_user: test
+      db_password: test
+      db_database_name: test  # Used in full/3-part table name
+      # Schemas. # Used in full/3-part table name
+      schema_stage: stg  # Temp space, for ingestion.
+      schema_production: prd  # Long-term physical/historical table data. Optimize as needed.
+      schema_report: rpt  # Static external (VIEW) interface to prod data and report tables.
