@@ -8,5 +8,5 @@ pyflakes
 # For processing the data (we share this virtual env)
 pyspark
 sqlalchemy
-# psycopg2-binary  # Not used yet
+psycopg2-binary
 

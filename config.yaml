@@ -1,23 +1,14 @@
-# This config file controls the pyalgofetcher program
+# This config file controls the code that gets and processs data
 
-# TODO: add support for writing to multiple destinations (in the same run)
-# Places to write the data we fetch
 output_destinations: "file"
-#destinations: "file,postgresql"
 
 output_config:
   file:
-    # CSV and JSON are supported via https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html
-    #format: "csv"
     format: json
     format_args:
-      # CSV
-      header: true # header line
-      # JSON
-      orient: "records" # or "table"
-      # CSV and JSON
-      compression: None # or "gz", "bz2", "xz", and, less preferred, "zip"
-  #postgresql:
+      header: true # header line (for CSV)
+      orient: "records" # or "table" (for JSON)
+      compression: None # or "gz", "bz2", "xz", and, less preferred, "zip" (for CSV and JSON)
 
 # List the feeds in this section
 #
@@ -74,11 +65,12 @@ feeds:
   #  api_args:
   #    symbol: "VIX"
   #    source: "yahoo"
-  spy:
-    api: pdr
-    api_args:
-      symbol: "SPY"
-      source: "yahoo"
+  #
+  #spy:  # AS OF 2022-01-16, this is not returning 'date' data.
+  #  api: pdr
+  #  api_args:
+  #    symbol: "SPY"
+  #    source: "yahoo"
 
 
 # Do not put private information in this file!
@@ -91,4 +83,21 @@ credentials:
     sc:
       username: username-override-me
       password: password-override-me
-
+  # The DB is local, but if we use a remote DB, put those credentials in the override.yaml file.
+  database:
+    # Database type (only postgresql is supported for now)
+    db_type: postgresql
+    # Postgresql connection info
+    postgresql_args:
+      db_host: localhost
+      db_port: 5432
+      db_user: test
+      db_password: test
+      db_database_name: test
+    # TODO: move this to a different section. This is not secrent information
+    # Schemas.
+    schema_stage: stg  # Temp space, for ingestion.
+    schema_production: prd  # Long-term physical/historical table data. Optimize as needed.
+    schema_report: rpt  # Static external (VIEW) interface to prod data and report tables.
+    # Table names
+    prod_denormalized_feed_table: dn_feeds
