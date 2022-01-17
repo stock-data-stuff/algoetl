@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 import yaml
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Table, MetaData
 
 
 class Dataloader:
@@ -54,22 +54,20 @@ class Dataloader:
                        + '?client_encoding=utf8'
             engine = create_engine(conn_str)
             self.sqlalchemy_engine = engine
-            #
-            # Schemas. # Used in full/3-part table name
-            self.schema_stage = args['schema_stage']
-            self.schema_production = args['schema_production']
-            self.schema_report = args['schema_report']
         if self.sqlalchemy_engine is None:
             logging.error("Database connection failed")
             sys.exit(1)
 
         # Initialize schemas
+        self.schema_stage = db_cfg['schema_stage']
+        self.schema_production = db_cfg['schema_production']
+        self.schema_report = db_cfg['schema_report']
         for schema in [self.schema_stage, self.schema_production, self.schema_report]:
             sql = "CREATE SCHEMA IF NOT EXISTS %s" %  schema
             self.sqlalchemy_engine.execute(sql)
 
-        # Build up this list as we read in stage tables
-        self.feed_tables = []
+        # Remember table names
+        self.prod_denormalized_feed_table = db_cfg['prod_denormalized_feed_table']
 
     def read_config_data(self):
         """ Read the configuration and override files """
@@ -114,42 +112,6 @@ class Dataloader:
 
         return config_data
 
-    def write_df(self, abs_filename, data_frame):
-        """ Write the dataframe to a file. Format details are in the config data"""
-        logging.info("Writing dataframe to file: %s", abs_filename)
-        if data_frame is None:
-            logging.warning("Dataframe is None. Exiting")
-            return
-        rowcount = data_frame.values.size
-        if rowcount == 0:
-            logging.warning("Dataframe has no rows")
-            return
-        logging.info("Writing dataframe with rowcount: %s to file: %s",
-                     rowcount, abs_filename)
-        if self.output_format == "csv":
-            csv_header = self.config_data['output_config']['file']['format_args']['header']
-            if str(csv_header).lower() == 'false':
-                data_frame.to_csv(abs_filename, header=None, index=False,
-                                  date_format='%Y-%m-%d')
-            else:
-                data_frame.to_csv(abs_filename, index=False,
-                                  date_format='%Y-%m-%d')
-        elif self.output_format == "json":
-            orient = self.config_data['output_config']['file']['format_args']['orient']
-            if str(orient).lower() == 'table':
-                data_frame.to_json(abs_filename, orient="table",
-                                   date_format='iso', date_unit='s')
-            if str(orient).lower() == 'records':
-                data_frame.to_json(abs_filename, orient="records", lines=True,
-                                   date_format='iso', date_unit='s')
-            else:
-                logging.critical("Unsupported value of orient: %s", orient)
-                sys.exit(1)
-        else:
-            logging.critical("write_df(): Unsupported output format parameter: %s",
-                             self.output_format)
-            sys.exit(1)
-
     def get_pdf_from_json_dir(self, json_dir):
         """ Return a Pandas Data Frame using all JSON files in the given dir """
         file_list = [x for x in os.listdir(json_dir) if x.endswith("json")]
@@ -163,7 +125,7 @@ class Dataloader:
         return pdf
 
     def recreate_db_table_from_pdf(self, pdf, table_name, schema_name):
-        """ Create a database table from the given Pandas DataFrame """
+        """ Drop and ReCreate a database table from the given Pandas DataFrame """
         sql = "DROP TABLE IF EXISTS {0}.{1}".\
             format(schema_name, table_name)
         self.sqlalchemy_engine.execute(sql)
@@ -177,32 +139,174 @@ class Dataloader:
            Path to a directory of JSON files to process
          table_name:
            Name of the table to create
+         schema_name:
+           Name of the schema to contain the table
         """
         logging.info("Processing feed_dir=%s, table_name=%s, schema_name=%s",
                      feed_dir, table_name, schema_name)
         pdf = self.get_pdf_from_json_dir(feed_dir)
         self.recreate_db_table_from_pdf(pdf, table_name, schema_name)
-        self.feed_tables.append(table_name)  # Remember the table names so we can unite them later
+
+    def get_col_names(self, schema, table_name):
+        """ return a list of column names for the given table """
+        sql = "SELECT * FROM {0}.{1}".format(schema, table_name)
+        with self.sqlalchemy_engine.connect() as connection:
+            df = pd.read_sql(sql, connection)
+        cols = df.columns.tolist()
+        return cols
+
+    def create_denormalized_table(self,
+                                  denormalized_table_schema,
+                                  denormalized_table_name,
+                                  normalized_table_schema,
+                                  normalized_table_names):
+        """ Create a denormalized table from a set of tables """
+        tgt_table = "{0}.{1}".format(denormalized_table_schema, denormalized_table_name)
+        logging.info("Create denormalized table %s" % tgt_table)
+
+        logging.info("Create a driver table with all dates that occur in the data")
+        # Drop old table
+        sql = "DROP TABLE IF EXISTS %s" % tgt_table
+        self.sqlalchemy_engine.execute(sql)
+
+        # Specify sql to get all dates
+        # e.g.
+        #   SELECT date FROM stg.aapl
+        #   UNION ALL SELECT date FROM stg.ibm
+        #   UNION ALL SELECT date FROM stg.vix
+        date_sql = ''
+        n = len(normalized_table_names)
+        i = 0
+        for table_name in normalized_table_names:
+            date_sql += "SELECT date FROM {0}.{1} ".format(
+                normalized_table_schema,
+                table_name
+            )
+            i += 1
+            if i < n:
+                date_sql += "UNION ALL "
+
+        # specify all columns in all tables
+        # e.g.
+        #   ,stg.aapl.open as aapl_open
+        #   ,stg.aapl.close as aapl_close
+        #   ,stg.ibm.open as ibm_open
+        #   ,stg.ibm.close as ibm_close
+        # Note: skip the "date" column since it comes from the skeleton
+        from_list_sql = ''
+        n = len(normalized_table_names)
+        i = 0
+        for table_name in normalized_table_names:
+            column_names = self.get_col_names(
+                normalized_table_schema,
+                table_name
+            )
+            logging.debug("Got cols: %s", column_names)
+            if 'date' not in column_names:
+                logging("ERROR: no date in table: %s", table_name)
+                sys.exit(1)
+            for col_name in column_names:
+                if col_name.lower() != 'date':
+                    new_str = ",{0}.{1}.{2} AS {1}_{2} ".format(
+                        normalized_table_schema,
+                        table_name,
+                        col_name,
+                    )
+                    from_list_sql += new_str
+
+        # Create sql with the left-outer joins to pull in the data
+        # e.g.
+        #  LEFT OUTER JOIN stg.aapl on skeleton_dates.date = stg.aapl.date
+        #  LEFT OUTER JOIN stg.ibm on skeleton_dates.date = stg.ibm.date
+        loj_sql = ''
+        for table_name in normalized_table_names:
+            loj_sql += " LEFT OUTER JOIN {0}.{1} on skeleton_dates.date = {0}.{1}.date ".format(
+                normalized_table_schema,
+                table_name
+            )
+
+        # Create new table
+        sql = """
+        CREATE TABLE {0} AS
+        WITH 
+          skeleton_date_data AS ( 
+            {1}
+          ),
+          skeleton_dates AS (
+            SELECT DISTINCT date 
+            FROM skeleton_date_data          
+          ),
+          new_table AS (
+            SELECT skeleton_dates.date
+            {2}
+            FROM skeleton_dates 
+            {3}
+          )
+        SELECT * FROM new_table""".format(
+            tgt_table,
+            date_sql,
+            from_list_sql,
+            loj_sql
+        )
+        logging.debug("Running SQL %s" % sql)
+        self.sqlalchemy_engine.execute(sql)
+        logging.debug("Created table: %s", tgt_table)
+
+    def write_table_as_csv(self, schema, table_name, abs_filename):
+        """ Write the table as a CSV file """
+        # Read data into a Pandas DataFrame
+        sql = "SELECT * FROM {0}.{1}".format(schema, table_name)
+        with self.sqlalchemy_engine.connect() as connection:
+            data_frame = pd.read_sql(sql, connection)
+        # Write dataframe to CSV file
+        data_frame.to_csv(abs_filename,
+                          index=False,
+                          date_format='%Y-%m-%d')
 
     def run(self):
         """ Main loop for the code """
+        logging.info("Create a stage table for each feed directory")
+        stage_tables = list()
         # Loop through the different APIs in the feed history folder
         glob_pattern = os.path.join(self.history_dir, '*')
         api_dirs = glob.glob(glob_pattern)
         for api_dir in api_dirs:
             # Infer the API from the dir
-            api = os.path.basename(api_dir).lower()
+            # api = os.path.basename(api_dir).lower()
             if os.path.isdir(api_dir):
                 logging.debug("Found API dir: %s", api_dir)
                 feed_dir_pattern = os.path.join(api_dir, '*')
                 feed_dirs = glob.glob(feed_dir_pattern)
                 for feed_dir in feed_dirs:
                     logging.debug("Found feed dir: %s", feed_dir)
-                    # Infer the Symbol from the dir
+                    # Use the feed_dir name as the table name
                     table_name = os.path.basename(feed_dir).lower()
                     self.create_table_from_feed_dir(feed_dir, table_name, self.schema_stage)
-        # Write the table to a (CSV) file for Excel
-        # self.write_df()
+                    stage_tables.append(table_name)  # Remember the table names so we can unite them later
+
+        logging.info("Create a prod table from the feed/stage tables")
+        self.create_denormalized_table(
+            self.schema_production,
+            self.prod_denormalized_feed_table,
+            self.schema_stage,
+            stage_tables)
+
+        # Write the denormalized data to a CSV file
+        csv_dir = os.path.normpath(os.path.join(os.environ['HOME'], "Downloads"))
+        if not os.path.isdir(csv_dir):
+            logging.error("CSV dir does not exist: %s", csv_dir)
+            sys.exit(1)
+        logging.info("Writing CSV file to: %s", csv_dir)
+        rel_filename = "{0}.{1}.csv".format(
+            self.schema_production,
+            self.prod_denormalized_feed_table
+        )
+        abs_filename = os.path.normpath(os.path.join(csv_dir, rel_filename))
+        logging.info("Write denormalized data to CSV file: %s", abs_filename)
+        self.write_table_as_csv(
+            self.schema_production,
+            self.prod_denormalized_feed_table,
+            abs_filename)
         logging.info("Successfully terminating program")
 
 
@@ -291,7 +395,6 @@ def configure_logging(cfg):
 
 def main():
     """ Main program """
-    print("WTF")
     app_cfg = read_cli_args()
     configure_logging(app_cfg)
     app = Dataloader(app_cfg)
