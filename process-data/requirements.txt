@@ -1,0 +1,7 @@
+pyyaml
+pandas
+pyflakes
+pyspark
+sqlalchemy
+psycopg2-binary
+
