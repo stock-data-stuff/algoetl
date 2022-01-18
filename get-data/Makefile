@@ -17,17 +17,29 @@ SHELL:=/bin/bash
 #VENV_PYTHON=/usr/bin/python3.9
 VENV_PYTHON=python3
 
-# Some script commands
-START=$(shell date --date="10 days ago" +"%Y-%m-%d")
-END=$(shell date --date="1 days ago" +"%Y-%m-%d")
+# Set the start and end day.
+#
+# Normally, these will be given as parameters. e.g.:
+#   make START=2022-01-08 END=2022-01-09
+#
+# But, allow some defaults to be set here.
+DEFAULT_START=$(shell date --date="10 days ago" +"%Y-%m-%d")
+DEFAULT_END=$(shell date --date="1 day ago" +"%Y-%m-%d")
+#
+ifndef START
+override START = $(DEFAULT_START)
+endif
+#
+ifndef END
+override END = $(DEFAULT_END)
+endif
 
-all: clean lint run
+all: lint run
 
 clean:
-	$(info Removing any fetched files)
-	$(shell rm -f $(MAKEFILE_PATH)/tmp/*.csv)
+    $(info Clean [noop])
 
-clean-all: clean
+clean-all:
 	$(info Removing venv dir)
 	$(shell rm -rf $(VENV_DIR))
 
@@ -42,10 +54,6 @@ python3: venv
 deps: python3
 	$(info Installing dependencies)
 
-run: deps clean lint
-	$(info Running the script without any setup...)
-	source $(VENV_DIR)/bin/activate && python3 pyalgofetcher.py -s $(START) -e $(END)
-
 pylint: deps
 	$(info Running pylint. This is generally has false positives)
 	source $(VENV_DIR)/bin/activate && python -m pip install pylint && pylint --rcfile=./.pylintrc ./*.py
@@ -57,3 +65,8 @@ pyflakes: deps
 lint: pyflakes pylint
 	$(info Running some static code analysis)
 
+run-script:
+	$(info Running the script for START=$(START) and END=$(END))
+	#source $(VENV_DIR)/bin/activate && python3 pyalgofetcher.py -s $(START) -e $(END)
+
+run: deps lint run-script
