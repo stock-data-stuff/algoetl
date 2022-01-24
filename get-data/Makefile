@@ -67,6 +67,6 @@ lint: pyflakes pylint
 
 run-script:
 	$(info Running the script for START=$(START) and END=$(END))
-	#source $(VENV_DIR)/bin/activate && python3 pyalgofetcher.py -s $(START) -e $(END)
+	source $(VENV_DIR)/bin/activate && python3 pyalgofetcher.py -s $(START) -e $(END)
 
 run: deps lint run-script
